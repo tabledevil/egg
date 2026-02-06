@@ -2,7 +2,6 @@ package ui
 
 import (
 	"ctf-tool/pkg/game"
-	"ctf-tool/pkg/ui/caps"
 	"ctf-tool/pkg/ui/theme"
 	"ctf-tool/pkg/ui/transition"
 	"fmt"
@@ -14,7 +13,7 @@ import (
 )
 
 func tick() tea.Cmd {
-	return tea.Tick(time.Millisecond*30, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Millisecond*33, func(t time.Time) tea.Msg {
 		return game.TickMsg(t)
 	})
 }
@@ -30,7 +29,7 @@ type Model struct {
 	ActiveTransition     transition.Transition
 
 	// Animation State
-	TypewriterIndex int
+	TypewriterIndex    int
 
 	// UI Components
 	Input textinput.Model
@@ -42,8 +41,9 @@ type Model struct {
 	// Feedback
 	ShowHint bool
 
-	// Environment Capabilities
-	Caps caps.Capabilities
+	// Demo
+	AutoDemo bool
+	DemoTick int
 }
 
 func NewModel(config *game.Config) Model {
@@ -59,59 +59,75 @@ func NewModel(config *game.Config) Model {
 		Config: config,
 		State:  StateIntro,
 		Input:  ti,
-		Caps:   caps.Detect(),
 	}
 	m.PickRandomTheme()
 	return m
 }
 
 func (m *Model) PickRandomTheme() tea.Cmd {
-	var compatible []theme.Constructor
-	for _, c := range theme.Registry {
-		// Check compatibility by instantiating (lightweight)
-		t := c()
-		if t.IsCompatible(m.Caps) {
-			compatible = append(compatible, c)
-		}
-	}
-
-	if len(compatible) > 0 {
-		constructor := compatible[rand.Intn(len(compatible))]
+	if len(theme.Registry) > 0 {
+		constructor := theme.Registry[rand.Intn(len(theme.Registry))]
 		m.ActiveTheme = constructor()
 		return m.ActiveTheme.Init()
 	}
-
-	// Fallback should ideally be handled, but if Minimal is registered and compatible, we are safe.
-	// If absolutely nothing is compatible, we are in trouble, but let's assume at least one is.
 	return nil
 }
 
 func (m *Model) StartTransition() tea.Cmd {
+	// 1. Capture Old View
+	q := m.Config.Questions[m.CurrentQuestionIndex]
+	visibleText := q.Text
+	if m.TypewriterIndex < len(q.Text) {
+		visibleText = q.Text[:m.TypewriterIndex] + "█"
+	}
+	displayQ := q
+	displayQ.Text = visibleText
+	hint := ""
+	if m.ShowHint { hint = q.Hint }
+
+	oldView := ""
+	if m.ActiveTheme != nil {
+		oldView = m.ActiveTheme.View(m.Width, m.Height, &displayQ, m.Input.View(), hint)
+	}
+
+	// 2. Advance State
+	m.CurrentQuestionIndex++
+	// Wrap around for demo/endless feel, or success
+	if m.CurrentQuestionIndex >= len(m.Config.Questions) {
+		m.CurrentQuestionIndex = 0 // Loop for demo purposes
+		// m.State = StateSuccess
+		// return nil
+	}
+
+	// 3. Pick New Theme
+	themeCmd := m.PickRandomTheme()
+
+	// 4. Capture New View (Preview)
+	m.Input.Reset()
+	m.ShowHint = false
+	m.WrongAnswers = 0
+	m.TypewriterIndex = 0
+
+	newQ := m.Config.Questions[m.CurrentQuestionIndex]
+	newDisplayQ := newQ
+	newDisplayQ.Text = "█"
+
+	newView := ""
+	if m.ActiveTheme != nil {
+		newView = m.ActiveTheme.View(m.Width, m.Height, &newDisplayQ, m.Input.View(), "")
+	}
+
+	// 5. Create Transition
 	m.State = StateTransition
-
-	var compatible []transition.Constructor
-	for _, c := range transition.Registry {
-		t := c()
-		if t.IsCompatible(m.Caps) {
-			compatible = append(compatible, c)
-		}
-	}
-
-	if len(compatible) > 0 {
-		constructor := compatible[rand.Intn(len(compatible))]
+	if len(transition.Registry) > 0 {
+		constructor := transition.Registry[rand.Intn(len(transition.Registry))]
 		m.ActiveTransition = constructor()
-		return m.ActiveTransition.Init()
+		m.ActiveTransition.SetContent(oldView, newView)
+		return tea.Batch(themeCmd, m.ActiveTransition.Init())
 	}
 
-	// If no transition is compatible (e.g. strict ASCII), we might skip transition?
-	// Or just default to nil which renders "Loading next level..." text in View.
-	m.ActiveTransition = nil
-	// We need to advance state eventually if we have no transition animation to wait for.
-	// But the View handles nil ActiveTransition by showing text.
-	// The Update loop waits for transition.Done(). If nil, it hangs?
-	// Let's check Update logic.
-
-	return nil // If nil, we need to handle it in Update to auto-advance
+	m.State = StateQuestion
+	return themeCmd
 }
 
 func (m Model) Init() tea.Cmd {
@@ -132,10 +148,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
+		case tea.KeyF1:
+			// Next Theme
+			cmds = append(cmds, m.PickRandomTheme())
+		case tea.KeyF2:
+			// Force Transition (stay on same Q)
+			m.CurrentQuestionIndex--
+			if m.CurrentQuestionIndex < 0 { m.CurrentQuestionIndex = 0 }
+			cmds = append(cmds, m.StartTransition())
+		case tea.KeyF3:
+			m.AutoDemo = !m.AutoDemo
 		}
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+	}
+
+	// Auto Demo Logic
+	if m.AutoDemo {
+		if _, ok := msg.(game.TickMsg); ok {
+			m.DemoTick++
+			if m.DemoTick > 150 { // ~5 seconds
+				m.DemoTick = 0
+				if m.State == StateQuestion {
+					cmds = append(cmds, m.StartTransition())
+				}
+			}
+		}
 	}
 
 	// State Machine
@@ -161,15 +200,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.ActiveTransition.Done() {
 				m.State = StateQuestion
 				m.TypewriterIndex = 0
-				cmds = append(cmds, m.PickRandomTheme())
 			}
 		} else {
-			// No active transition (maybe none compatible), so skip immediately or wait a bit?
-			// Let's wait a tiny bit or just skip.
-			// Simple fix: if nil, go straight to question.
 			m.State = StateQuestion
-			m.TypewriterIndex = 0
-			cmds = append(cmds, m.PickRandomTheme())
 		}
 
 	case StateQuestion:
@@ -184,16 +217,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeyEnter {
 			currentQ := m.Config.Questions[m.CurrentQuestionIndex]
 			if game.CheckAnswer(m.Input.Value(), currentQ.Answer) {
-				m.CurrentQuestionIndex++
-				m.Input.Reset()
-				m.ShowHint = false
-				m.WrongAnswers = 0
-
-				if m.CurrentQuestionIndex >= len(m.Config.Questions) {
-					m.State = StateSuccess
-				} else {
-					cmds = append(cmds, m.StartTransition())
-				}
+				cmds = append(cmds, m.StartTransition())
 			} else {
 				m.WrongAnswers++
 				if m.WrongAnswers >= 1 {
@@ -259,10 +283,16 @@ func (m Model) View() string {
 			hint = q.Hint
 		}
 
+		content := "Error: No Theme Selected"
 		if m.ActiveTheme != nil {
-			return m.ActiveTheme.View(m.Width, m.Height, &displayQ, m.Input.View(), hint)
+			content = m.ActiveTheme.View(m.Width, m.Height, &displayQ, m.Input.View(), hint)
 		}
-		return "Error: No Theme Selected"
+
+		// Overlay Demo Status
+		if m.AutoDemo {
+			content = lipgloss.JoinVertical(lipgloss.Left, content, lipgloss.NewStyle().Background(lipgloss.Color("#FF0000")).Render(" DEMO MODE "))
+		}
+		return content
 
 	case StateSuccess:
 		style := lipgloss.NewStyle().

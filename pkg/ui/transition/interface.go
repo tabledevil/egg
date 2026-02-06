@@ -1,7 +1,6 @@
 package transition
 
 import (
-	"ctf-tool/pkg/ui/caps"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -11,7 +10,7 @@ type Transition interface {
 	Update(msg tea.Msg) (Transition, tea.Cmd)
 	View(width, height int) string
 	Done() bool
-	IsCompatible(c caps.Capabilities) bool
+	SetContent(oldView, newView string)
 }
 
 // Constructor for creating new transition instances
