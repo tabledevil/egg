@@ -17,17 +17,13 @@ func NewDOSTheme() Theme {
 }
 
 func (t *DOSTheme) Init() tea.Cmd {
-	return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
-		return game.TickMsg(t)
-	})
+	return nil
 }
 
 func (t *DOSTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
-	if _, ok := msg.(game.TickMsg); ok {
-		t.blink = !t.blink
-		return t, tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
-			return game.TickMsg(t)
-		})
+	if tick, ok := msg.(game.TickMsg); ok {
+		// Blink every 500ms based on the global clock
+		t.blink = (time.Time(tick).UnixMilli() / 500) % 2 == 0
 	}
 	return t, nil
 }
