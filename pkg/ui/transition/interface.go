@@ -10,6 +10,7 @@ type Transition interface {
 	Update(msg tea.Msg) (Transition, tea.Cmd)
 	View(width, height int) string
 	Done() bool
+	SetContent(oldView, newView string)
 }
 
 // Constructor for creating new transition instances

@@ -13,7 +13,7 @@ import (
 )
 
 func tick() tea.Cmd {
-	return tea.Tick(time.Millisecond*30, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Millisecond*33, func(t time.Time) tea.Msg {
 		return game.TickMsg(t)
 	})
 }
@@ -40,6 +40,10 @@ type Model struct {
 
 	// Feedback
 	ShowHint bool
+
+	// Demo
+	AutoDemo bool
+	DemoTick int
 }
 
 func NewModel(config *game.Config) Model {
@@ -70,13 +74,60 @@ func (m *Model) PickRandomTheme() tea.Cmd {
 }
 
 func (m *Model) StartTransition() tea.Cmd {
+	// 1. Capture Old View
+	q := m.Config.Questions[m.CurrentQuestionIndex]
+	visibleText := q.Text
+	if m.TypewriterIndex < len(q.Text) {
+		visibleText = q.Text[:m.TypewriterIndex] + "█"
+	}
+	displayQ := q
+	displayQ.Text = visibleText
+	hint := ""
+	if m.ShowHint { hint = q.Hint }
+
+	oldView := ""
+	if m.ActiveTheme != nil {
+		oldView = m.ActiveTheme.View(m.Width, m.Height, &displayQ, m.Input.View(), hint)
+	}
+
+	// 2. Advance State
+	m.CurrentQuestionIndex++
+	// Wrap around for demo/endless feel, or success
+	if m.CurrentQuestionIndex >= len(m.Config.Questions) {
+		m.CurrentQuestionIndex = 0 // Loop for demo purposes
+		// m.State = StateSuccess
+		// return nil
+	}
+
+	// 3. Pick New Theme
+	themeCmd := m.PickRandomTheme()
+
+	// 4. Capture New View (Preview)
+	m.Input.Reset()
+	m.ShowHint = false
+	m.WrongAnswers = 0
+	m.TypewriterIndex = 0
+
+	newQ := m.Config.Questions[m.CurrentQuestionIndex]
+	newDisplayQ := newQ
+	newDisplayQ.Text = "█"
+
+	newView := ""
+	if m.ActiveTheme != nil {
+		newView = m.ActiveTheme.View(m.Width, m.Height, &newDisplayQ, m.Input.View(), "")
+	}
+
+	// 5. Create Transition
 	m.State = StateTransition
 	if len(transition.Registry) > 0 {
 		constructor := transition.Registry[rand.Intn(len(transition.Registry))]
 		m.ActiveTransition = constructor()
-		return m.ActiveTransition.Init()
+		m.ActiveTransition.SetContent(oldView, newView)
+		return tea.Batch(themeCmd, m.ActiveTransition.Init())
 	}
-	return nil
+
+	m.State = StateQuestion
+	return themeCmd
 }
 
 func (m Model) Init() tea.Cmd {
@@ -97,10 +148,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
+		case tea.KeyF1:
+			// Next Theme
+			cmds = append(cmds, m.PickRandomTheme())
+		case tea.KeyF2:
+			// Force Transition (stay on same Q)
+			m.CurrentQuestionIndex--
+			if m.CurrentQuestionIndex < 0 { m.CurrentQuestionIndex = 0 }
+			cmds = append(cmds, m.StartTransition())
+		case tea.KeyF3:
+			m.AutoDemo = !m.AutoDemo
 		}
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+	}
+
+	// Auto Demo Logic
+	if m.AutoDemo {
+		if _, ok := msg.(game.TickMsg); ok {
+			m.DemoTick++
+			if m.DemoTick > 150 { // ~5 seconds
+				m.DemoTick = 0
+				if m.State == StateQuestion {
+					cmds = append(cmds, m.StartTransition())
+				}
+			}
+		}
 	}
 
 	// State Machine
@@ -123,7 +197,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.ActiveTransition.Done() {
 				m.State = StateQuestion
 				m.TypewriterIndex = 0
-				cmds = append(cmds, m.PickRandomTheme())
 			}
 		} else {
 			m.State = StateQuestion
@@ -141,16 +214,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeyEnter {
 			currentQ := m.Config.Questions[m.CurrentQuestionIndex]
 			if game.CheckAnswer(m.Input.Value(), currentQ.Answer) {
-				m.CurrentQuestionIndex++
-				m.Input.Reset()
-				m.ShowHint = false
-				m.WrongAnswers = 0
-
-				if m.CurrentQuestionIndex >= len(m.Config.Questions) {
-					m.State = StateSuccess
-				} else {
-					cmds = append(cmds, m.StartTransition())
-				}
+				cmds = append(cmds, m.StartTransition())
 			} else {
 				m.WrongAnswers++
 				if m.WrongAnswers >= 1 {
@@ -216,10 +280,16 @@ func (m Model) View() string {
 			hint = q.Hint
 		}
 
+		content := "Error: No Theme Selected"
 		if m.ActiveTheme != nil {
-			return m.ActiveTheme.View(m.Width, m.Height, &displayQ, m.Input.View(), hint)
+			content = m.ActiveTheme.View(m.Width, m.Height, &displayQ, m.Input.View(), hint)
 		}
-		return "Error: No Theme Selected"
+
+		// Overlay Demo Status
+		if m.AutoDemo {
+			content = lipgloss.JoinVertical(lipgloss.Left, content, lipgloss.NewStyle().Background(lipgloss.Color("#FF0000")).Render(" DEMO MODE "))
+		}
+		return content
 
 	case StateSuccess:
 		style := lipgloss.NewStyle().
