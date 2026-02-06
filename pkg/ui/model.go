@@ -106,6 +106,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// State Machine
 	switch m.State {
 	case StateIntro:
+		if _, ok := msg.(game.TickMsg); ok {
+			cmds = append(cmds, tick())
+		}
 		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeyEnter {
 			m.State = StateQuestion
 			m.TypewriterIndex = 0
