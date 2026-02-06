@@ -4,15 +4,28 @@ import (
 	"ctf-tool/pkg/game"
 	"fmt"
 	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea"
 	"strings"
 )
 
 type RetroTheme struct{}
 
-func (t RetroTheme) Name() string        { return "Retro CRT" }
-func (t RetroTheme) Description() string { return "Classic green-on-black terminal" }
+func NewRetroTheme() Theme {
+	return &RetroTheme{}
+}
 
-func (t RetroTheme) Render(width, height int, q *game.Question, inputView string, hint string) string {
+func (t *RetroTheme) Init() tea.Cmd {
+	return nil
+}
+
+func (t *RetroTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
+	return t, nil
+}
+
+func (t *RetroTheme) Name() string        { return "Retro CRT" }
+func (t *RetroTheme) Description() string { return "Classic green-on-black terminal" }
+
+func (t *RetroTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	// Styles
 	green := lipgloss.Color("#00FF00")
 	black := lipgloss.Color("#000000")
@@ -23,11 +36,16 @@ func (t RetroTheme) Render(width, height int, q *game.Question, inputView string
 		Width(width).
 		Height(height)
 
+	contentWidth := width - 4
+	if contentWidth < 10 {
+		contentWidth = 10
+	}
+
 	borderStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.DoubleBorder()).
 		BorderForeground(green).
 		Padding(1).
-		Width(width - 4) // Adjust for border
+		Width(contentWidth)
 
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -36,7 +54,7 @@ func (t RetroTheme) Render(width, height int, q *game.Question, inputView string
 
 	textStyle := lipgloss.NewStyle().
 		MarginBottom(2).
-		Width(width - 10)
+		Width(contentWidth - 6)
 
 	// Content Construction
 	var content strings.Builder
@@ -61,5 +79,5 @@ func (t RetroTheme) Render(width, height int, q *game.Question, inputView string
 }
 
 func init() {
-	Register(RetroTheme{})
+	Register(NewRetroTheme)
 }

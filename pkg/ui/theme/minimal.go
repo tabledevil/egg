@@ -4,15 +4,28 @@ import (
 	"ctf-tool/pkg/game"
 	"fmt"
 	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea"
 	"strings"
 )
 
 type MinimalTheme struct{}
 
-func (t MinimalTheme) Name() string        { return "Root Shell" }
-func (t MinimalTheme) Description() string { return "Clean, minimal root shell access" }
+func NewMinimalTheme() Theme {
+	return &MinimalTheme{}
+}
 
-func (t MinimalTheme) Render(width, height int, q *game.Question, inputView string, hint string) string {
+func (t *MinimalTheme) Init() tea.Cmd {
+	return nil
+}
+
+func (t *MinimalTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
+	return t, nil
+}
+
+func (t *MinimalTheme) Name() string        { return "Root Shell" }
+func (t *MinimalTheme) Description() string { return "Clean, minimal root shell access" }
+
+func (t *MinimalTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	gray := lipgloss.Color("#888888")
 	white := lipgloss.Color("#FFFFFF")
 
@@ -50,5 +63,5 @@ func (t MinimalTheme) Render(width, height int, q *game.Question, inputView stri
 }
 
 func init() {
-	Register(MinimalTheme{})
+	Register(NewMinimalTheme)
 }
