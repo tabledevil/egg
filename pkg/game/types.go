@@ -1,5 +1,7 @@
 package game
 
+import "time"
+
 type Question struct {
 	ID     int    `json:"id"`
 	Text   string `json:"text"`
@@ -12,3 +14,5 @@ type Config struct {
 	FinalMessage string     `json:"final_message"`
 	FinalHint    string     `json:"final_hint"`
 }
+
+type TickMsg time.Time

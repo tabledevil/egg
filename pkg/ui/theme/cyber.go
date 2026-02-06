@@ -4,15 +4,28 @@ import (
 	"ctf-tool/pkg/game"
 	"fmt"
 	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea"
 	"strings"
 )
 
 type CyberTheme struct{}
 
-func (t CyberTheme) Name() string        { return "Neon City" }
-func (t CyberTheme) Description() string { return "High contrast neon colors" }
+func NewCyberTheme() Theme {
+	return &CyberTheme{}
+}
 
-func (t CyberTheme) Render(width, height int, q *game.Question, inputView string, hint string) string {
+func (t *CyberTheme) Init() tea.Cmd {
+	return nil
+}
+
+func (t *CyberTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
+	return t, nil
+}
+
+func (t *CyberTheme) Name() string        { return "Neon City" }
+func (t *CyberTheme) Description() string { return "High contrast neon colors" }
+
+func (t *CyberTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	pink := lipgloss.Color("#FF00FF")
 	cyan := lipgloss.Color("#00FFFF")
 	darkBlue := lipgloss.Color("#000033")
@@ -71,5 +84,5 @@ func (t CyberTheme) Render(width, height int, q *game.Question, inputView string
 }
 
 func init() {
-	Register(CyberTheme{})
+	Register(NewCyberTheme)
 }
