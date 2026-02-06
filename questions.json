@@ -1,0 +1,36 @@
+{
+  "questions": [
+    {
+      "id": 1,
+      "text": "I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?",
+      "answer": "echo",
+      "hint": "It's also a common terminal command."
+    },
+    {
+      "id": 2,
+      "text": "I have keys but no locks. I have a space but no room. You can enter, but never go outside. What am I?",
+      "answer": "keyboard",
+      "hint": "You are using one right now."
+    },
+    {
+      "id": 3,
+      "text": "The more you take, the more you leave behind. What am I?",
+      "answer": "footsteps",
+      "hint": "Think about walking through a digital forest."
+    },
+    {
+      "id": 4,
+      "text": "What acts like a cat but looks like a worm?",
+      "answer": "cat",
+      "hint": "Concatenate files."
+    },
+    {
+      "id": 5,
+      "text": "I am a portal to the machine soul. I listen on port 22.",
+      "answer": "ssh",
+      "hint": "Secure Shell."
+    }
+  ],
+  "final_message": "SYSTEM ACCESS GRANTED. THE EGG IS LOCATED AT: /tmp/egg_39281.dat",
+  "final_hint": "Look for the hidden file."
+}
