@@ -19,19 +19,11 @@ func TestResponsiveness_CtrlC(t *testing.T) {
 	ctrlC := tea.KeyMsg{Type: tea.KeyCtrlC}
 	_, cmd := m.Update(ctrlC)
 
-	// Verify Quit command
-	// tea.Quit returns a specific type of command, but we can't easily compare functions.
-	// However, usually tea.Quit returns a message.
-	// Actually tea.Quit() returns a Msg which is QuitMsg.
-	// No, tea.Quit is a tea.Cmd.
-	// We can execute it and see what happens?
-	// Or trust that Update returned tea.Quit which is standard.
-	// Let's just check if cmd != nil.
 	if cmd == nil {
 		t.Errorf("Expected tea.Quit command, got nil")
 	}
 
-	// A better check: execute the command.
+	// Execute command to verify it is tea.Quit
 	msg := cmd()
 	if _, ok := msg.(tea.QuitMsg); !ok {
 		t.Errorf("Command did not produce QuitMsg")
@@ -46,15 +38,13 @@ func TestResponsiveness_InputDuringTransition(t *testing.T) {
 
 	// Force transition state
 	m.StartTransition()
-	if m.State != StateTransition {
-		// Might have skipped if no transition compatible?
-		// But let's assume at least one is (Minimal is usually theme, not transition).
-		// Wait, transition registry might be empty or incompatible.
-		// If m.ActiveTransition is nil, State might be Question.
-		// Let's check state.
+
+	// If transitions are registered and compatible, we should be in StateTransition
+	if m.ActiveTransition != nil && m.State != StateTransition {
+		t.Errorf("Expected StateTransition, got %v", m.State)
 	}
 
-	// Send key input "A"
+	// Send key input "A" - this should be processed immediately and non-blocking
 	keyA := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")}
 	start := time.Now()
 	_, _ = m.Update(keyA)
