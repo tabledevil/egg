@@ -2,10 +2,12 @@ package transition
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"math/rand"
 	"strings"
-	"github.com/charmbracelet/lipgloss"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type MatrixTransition struct {
@@ -32,12 +34,12 @@ func (t *MatrixTransition) Update(msg tea.Msg) (Transition, tea.Cmd) {
 			if len(t.columns) != t.width {
 				t.columns = make([]int, t.width)
 				for i := range t.columns {
-					t.columns[i] = rand.Intn(t.height + 20) - 20
+					t.columns[i] = rand.Intn(t.height+20) - 20
 				}
 			}
 			for i := range t.columns {
 				t.columns[i]++
-				if t.columns[i] > t.height + 10 {
+				if t.columns[i] > t.height+10 {
 					t.columns[i] = rand.Intn(10) - 10
 				}
 			}
@@ -69,7 +71,7 @@ func (t *MatrixTransition) View(width, height int) string {
 			head := t.columns[x]
 			if y == head {
 				sb.WriteString(white.Render(string(runes[rand.Intn(len(runes))])))
-			} else if y < head && y > head - 10 {
+			} else if y < head && y > head-10 {
 				sb.WriteString(green.Render(string(runes[rand.Intn(len(runes))])))
 			} else {
 				sb.WriteRune(' ')
@@ -84,6 +86,10 @@ func (t *MatrixTransition) View(width, height int) string {
 
 func (t *MatrixTransition) Done() bool {
 	return t.progress >= 1.0
+}
+
+func (t *MatrixTransition) IsCompatible(c caps.Capabilities) bool {
+	return c.ColorProfile <= termenv.ANSI
 }
 
 func init() {

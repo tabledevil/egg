@@ -2,10 +2,12 @@ package transition
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"math/rand"
 	"strings"
-	"github.com/charmbracelet/lipgloss"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Point struct {
@@ -106,16 +108,24 @@ func (t *GraphTransition) View(width, height int) string {
 }
 
 func abs(a float64) float64 {
-	if a < 0 { return -a }
+	if a < 0 {
+		return -a
+	}
 	return a
 }
 func max(a, b float64) float64 {
-	if a > b { return a }
+	if a > b {
+		return a
+	}
 	return b
 }
 
 func (t *GraphTransition) Done() bool {
 	return t.progress >= 1.0
+}
+
+func (t *GraphTransition) IsCompatible(c caps.Capabilities) bool {
+	return c.ColorProfile <= termenv.ANSI
 }
 
 func init() {

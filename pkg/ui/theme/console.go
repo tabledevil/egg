@@ -2,9 +2,11 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"strings"
 )
 
@@ -23,33 +25,42 @@ type ConsoleTheme struct {
 	Config ConsoleConfig
 }
 
-func NewConsoleTheme(cfg ConsoleConfig) Theme {
-	return &ConsoleTheme{Config: cfg}
+func NewConsoleTheme(config ConsoleConfig) Theme {
+	return &ConsoleTheme{Config: config}
 }
 
-func (t *ConsoleTheme) Init() tea.Cmd { return nil }
-func (t *ConsoleTheme) Update(msg tea.Msg) (Theme, tea.Cmd) { return t, nil }
-func (t *ConsoleTheme) Name() string { return t.Config.Name }
+func (t *ConsoleTheme) Init() tea.Cmd {
+	return nil
+}
+
+func (t *ConsoleTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
+	return t, nil
+}
+
+func (t *ConsoleTheme) Name() string        { return t.Config.Name }
 func (t *ConsoleTheme) Description() string { return t.Config.Desc }
 
+func (t *ConsoleTheme) IsCompatible(c caps.Capabilities) bool {
+	// Console themes heavily rely on colors to look like consoles.
+	// We require at least basic ANSI support.
+	return c.ColorProfile <= termenv.ANSI
+}
+
 func (t *ConsoleTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
-	bg := lipgloss.Color(t.Config.BgColor)
-	fg := lipgloss.Color(t.Config.FgColor)
-	border := lipgloss.Color(t.Config.BorderColor)
-
 	base := lipgloss.NewStyle().
-		Background(bg).
-		Foreground(fg).
+		Background(lipgloss.Color(t.Config.BgColor)).
+		Foreground(lipgloss.Color(t.Config.FgColor)).
 		Width(width).
-		Height(height).
-		Align(lipgloss.Center, lipgloss.Center)
+		Height(height)
 
-	boxWidth := width - 6
-	if boxWidth < 20 { boxWidth = 20 }
+	boxWidth := width - 4
+	if boxWidth < 20 {
+		boxWidth = 20
+	}
 
 	box := lipgloss.NewStyle().
 		Border(t.Config.BorderStyle).
-		BorderForeground(border).
+		BorderForeground(lipgloss.Color(t.Config.BorderColor)).
 		Padding(1).
 		Width(boxWidth).
 		Align(lipgloss.Center)
@@ -104,13 +115,6 @@ func NewAmigaTheme() Theme {
 	})
 }
 
-func init() {
-	Register(NewNESTheme)
-	Register(NewGameboyTheme)
-	Register(NewC64Theme)
-	Register(NewAmigaTheme)
-}
-
 func NewAtariTheme() Theme {
 	return NewConsoleTheme(ConsoleConfig{
 		Name: "Atari", Desc: "2600 Style",
@@ -127,9 +131,11 @@ func NewStarWarsTheme() Theme {
 	})
 }
 
-// Re-registering allows init to run again? No, I need to append to the existing init block or add a new one.
-// Go allows multiple init functions in one package, but inside the same file? Yes.
 func init() {
+	Register(NewNESTheme)
+	Register(NewGameboyTheme)
+	Register(NewC64Theme)
+	Register(NewAmigaTheme)
 	Register(NewAtariTheme)
 	Register(NewStarWarsTheme)
 }

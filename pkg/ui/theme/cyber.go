@@ -2,9 +2,11 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"strings"
 )
 
@@ -24,6 +26,10 @@ func (t *CyberTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 
 func (t *CyberTheme) Name() string        { return "Neon City" }
 func (t *CyberTheme) Description() string { return "High contrast neon colors" }
+
+func (t *CyberTheme) IsCompatible(c caps.Capabilities) bool {
+	return c.ColorProfile <= termenv.ANSI
+}
 
 func (t *CyberTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	pink := lipgloss.Color("#FF00FF")

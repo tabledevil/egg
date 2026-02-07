@@ -2,9 +2,11 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"time"
 )
 
@@ -36,11 +38,13 @@ func (t *MatrixTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 
 func (t *MatrixTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	boxWidth := 50
-	if boxWidth > width-4 { boxWidth = width-4 }
+	if boxWidth > width-4 {
+		boxWidth = width - 4
+	}
 
 	// Animate Border Color
 	color := "#00FF00"
-	if t.tickCount % 6 < 3 {
+	if t.tickCount%6 < 3 {
 		color = "#005500"
 	}
 
@@ -62,8 +66,12 @@ func (t *MatrixTheme) View(width, height int, q *game.Question, inputView string
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, renderedBox)
 }
 
-func (t *MatrixTheme) Name() string { return "The Matrix" }
+func (t *MatrixTheme) Name() string        { return "The Matrix" }
 func (t *MatrixTheme) Description() string { return "Digital Rain" }
+
+func (t *MatrixTheme) IsCompatible(c caps.Capabilities) bool {
+	return c.ColorProfile <= termenv.ANSI
+}
 
 func init() {
 	Register(NewMatrixTheme)

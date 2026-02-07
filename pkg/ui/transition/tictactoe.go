@@ -2,11 +2,12 @@ package transition
 
 import (
 	"ctf-tool/pkg/game"
-	"github.com/charmbracelet/lipgloss"
-	tea "github.com/charmbracelet/bubbletea"
-	"strings"
-	"math/rand"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"math/rand"
+	"strings"
 )
 
 type TicTacToeTransition struct {
@@ -21,7 +22,7 @@ type TicTacToeTransition struct {
 func NewTicTacToeTransition() Transition {
 	t := &TicTacToeTransition{
 		progress: 0,
-		turn: "X",
+		turn:     "X",
 	}
 	for i := range t.board {
 		t.board[i] = " "
@@ -42,7 +43,9 @@ func (t *TicTacToeTransition) Update(msg tea.Msg) (Transition, tea.Cmd) {
 		if t.turn == "O" && t.aiTimer > 10 { // AI delay
 			empty := []int{}
 			for i, v := range t.board {
-				if v == " " { empty = append(empty, i) }
+				if v == " " {
+					empty = append(empty, i)
+				}
 			}
 			if len(empty) > 0 {
 				move := empty[rand.Intn(len(empty))]
@@ -55,7 +58,9 @@ func (t *TicTacToeTransition) Update(msg tea.Msg) (Transition, tea.Cmd) {
 			// Auto-play for player
 			empty := []int{}
 			for i, v := range t.board {
-				if v == " " { empty = append(empty, i) }
+				if v == " " {
+					empty = append(empty, i)
+				}
 			}
 			if len(empty) > 0 {
 				move := empty[rand.Intn(len(empty))]
@@ -87,8 +92,12 @@ func (t *TicTacToeTransition) Update(msg tea.Msg) (Transition, tea.Cmd) {
 					t.aiTimer = 0
 				}
 			}
-			if t.cursor < 0 { t.cursor += 9 }
-			if t.cursor > 8 { t.cursor -= 9 }
+			if t.cursor < 0 {
+				t.cursor += 9
+			}
+			if t.cursor > 8 {
+				t.cursor -= 9
+			}
 		} else {
 			t.progress += 0.05
 		}
@@ -98,9 +107,9 @@ func (t *TicTacToeTransition) Update(msg tea.Msg) (Transition, tea.Cmd) {
 
 func (t *TicTacToeTransition) checkWin() {
 	wins := [][]int{
-		{0,1,2}, {3,4,5}, {6,7,8},
-		{0,3,6}, {1,4,7}, {2,5,8},
-		{0,4,8}, {2,4,6},
+		{0, 1, 2}, {3, 4, 5}, {6, 7, 8},
+		{0, 3, 6}, {1, 4, 7}, {2, 5, 8},
+		{0, 4, 8}, {2, 4, 6},
 	}
 	for _, w := range wins {
 		if t.board[w[0]] != " " && t.board[w[0]] == t.board[w[1]] && t.board[w[1]] == t.board[w[2]] {
@@ -110,7 +119,9 @@ func (t *TicTacToeTransition) checkWin() {
 	}
 	full := true
 	for _, v := range t.board {
-		if v == " " { full = false }
+		if v == " " {
+			full = false
+		}
 	}
 	if full {
 		t.winner = "Draw"
@@ -132,7 +143,7 @@ func (t *TicTacToeTransition) View(width, height int) string {
 		}
 
 		s.WriteString(cell)
-		if (i+1) % 3 == 0 {
+		if (i+1)%3 == 0 {
 			if i < 8 {
 				s.WriteString("\n---+---+---\n")
 			}
@@ -142,7 +153,9 @@ func (t *TicTacToeTransition) View(width, height int) string {
 	}
 
 	bar := int(t.progress * 20)
-	if bar > 20 { bar = 20 }
+	if bar > 20 {
+		bar = 20
+	}
 	s.WriteString(fmt.Sprintf("\n\nBRUTE FORCE: [%s%s]", strings.Repeat("#", bar), strings.Repeat("-", 20-bar)))
 
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, s.String())
@@ -150,6 +163,10 @@ func (t *TicTacToeTransition) View(width, height int) string {
 
 func (t *TicTacToeTransition) Done() bool {
 	return t.progress >= 1.0
+}
+
+func (t *TicTacToeTransition) IsCompatible(c caps.Capabilities) bool {
+	return true
 }
 
 func init() {

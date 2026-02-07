@@ -2,6 +2,7 @@ package ui
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"ctf-tool/pkg/ui/theme"
 	"ctf-tool/pkg/ui/transition"
 	"fmt"
@@ -29,7 +30,7 @@ type Model struct {
 	ActiveTransition     transition.Transition
 
 	// Animation State
-	TypewriterIndex    int
+	TypewriterIndex int
 
 	// UI Components
 	Input textinput.Model
@@ -40,6 +41,9 @@ type Model struct {
 
 	// Feedback
 	ShowHint bool
+
+	// Environment Capabilities
+	Caps caps.Capabilities
 }
 
 func NewModel(config *game.Config) Model {
@@ -55,28 +59,59 @@ func NewModel(config *game.Config) Model {
 		Config: config,
 		State:  StateIntro,
 		Input:  ti,
+		Caps:   caps.Detect(),
 	}
 	m.PickRandomTheme()
 	return m
 }
 
 func (m *Model) PickRandomTheme() tea.Cmd {
-	if len(theme.Registry) > 0 {
-		constructor := theme.Registry[rand.Intn(len(theme.Registry))]
+	var compatible []theme.Constructor
+	for _, c := range theme.Registry {
+		// Check compatibility by instantiating (lightweight)
+		t := c()
+		if t.IsCompatible(m.Caps) {
+			compatible = append(compatible, c)
+		}
+	}
+
+	if len(compatible) > 0 {
+		constructor := compatible[rand.Intn(len(compatible))]
 		m.ActiveTheme = constructor()
 		return m.ActiveTheme.Init()
 	}
+
+	// Fallback should ideally be handled, but if Minimal is registered and compatible, we are safe.
+	// If absolutely nothing is compatible, we are in trouble, but let's assume at least one is.
 	return nil
 }
 
 func (m *Model) StartTransition() tea.Cmd {
 	m.State = StateTransition
-	if len(transition.Registry) > 0 {
-		constructor := transition.Registry[rand.Intn(len(transition.Registry))]
+
+	var compatible []transition.Constructor
+	for _, c := range transition.Registry {
+		t := c()
+		if t.IsCompatible(m.Caps) {
+			compatible = append(compatible, c)
+		}
+	}
+
+	if len(compatible) > 0 {
+		constructor := compatible[rand.Intn(len(compatible))]
 		m.ActiveTransition = constructor()
 		return m.ActiveTransition.Init()
 	}
-	return nil
+
+	// If no transition is compatible (e.g. strict ASCII), we might skip transition?
+	// Or just default to nil which renders "Loading next level..." text in View.
+	m.ActiveTransition = nil
+	// We need to advance state eventually if we have no transition animation to wait for.
+	// But the View handles nil ActiveTransition by showing text.
+	// The Update loop waits for transition.Done(). If nil, it hangs?
+	// Let's check Update logic.
+
+	return nil // If nil, we need to handle it in Update to auto-advance
 }
 
 func (m Model) Init() tea.Cmd {
@@ -129,7 +164,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.PickRandomTheme())
 			}
 		} else {
+			// No active transition (maybe none compatible), so skip immediately or wait a bit?
+			// Let's wait a tiny bit or just skip.
+			// Simple fix: if nil, go straight to question.
 			m.State = StateQuestion
+			m.TypewriterIndex = 0
+			cmds = append(cmds, m.PickRandomTheme())
 		}
 
 	case StateQuestion:
