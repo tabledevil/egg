@@ -2,6 +2,7 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -11,6 +12,7 @@ type Theme interface {
 	View(width, height int, q *game.Question, inputView string, hint string) string
 	Name() string
 	Description() string
+	IsCompatible(c caps.Capabilities) bool
 }
 
 type Constructor func() Theme

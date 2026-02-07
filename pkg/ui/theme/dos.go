@@ -2,9 +2,11 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"time"
 )
 
@@ -23,13 +25,17 @@ func (t *DOSTheme) Init() tea.Cmd {
 func (t *DOSTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	if tick, ok := msg.(game.TickMsg); ok {
 		// Blink every 500ms based on the global clock
-		t.blink = (time.Time(tick).UnixMilli() / 500) % 2 == 0
+		t.blink = (time.Time(tick).UnixMilli()/500)%2 == 0
 	}
 	return t, nil
 }
 
 func (t *DOSTheme) Name() string        { return "MS-DOS" }
 func (t *DOSTheme) Description() string { return "Blue background, gray text" }
+
+func (t *DOSTheme) IsCompatible(c caps.Capabilities) bool {
+	return c.ColorProfile <= termenv.ANSI
+}
 
 func (t *DOSTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	bg := lipgloss.Color("#0000AA")
@@ -78,7 +84,9 @@ func (t *DOSTheme) View(width, height int, q *game.Question, inputView string, h
 
 	// Layout
 	mainAreaHeight := height - 3 // Title + Menu + Footer
-	if mainAreaHeight < 0 { mainAreaHeight = 0 }
+	if mainAreaHeight < 0 {
+		mainAreaHeight = 0
+	}
 
 	mainArea := lipgloss.NewStyle().Height(mainAreaHeight).Render(content + "\n\n" + inputArea)
 

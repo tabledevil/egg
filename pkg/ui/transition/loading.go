@@ -2,9 +2,10 @@ package transition
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"strings"
 	"time"
 )
@@ -49,8 +50,12 @@ func (t *LoadingTransition) View(width, height int) string {
 	}
 
 	filled := int(t.progress * float64(barWidth))
-	if filled > barWidth { filled = barWidth }
-	if filled < 0 { filled = 0 }
+	if filled > barWidth {
+		filled = barWidth
+	}
+	if filled < 0 {
+		filled = 0
+	}
 
 	bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
 
@@ -64,6 +69,11 @@ func (t *LoadingTransition) View(width, height int) string {
 
 func (t *LoadingTransition) Done() bool {
 	return t.progress >= 1.0
+}
+
+func (t *LoadingTransition) IsCompatible(c caps.Capabilities) bool {
+	// Unicode for blocks
+	return c.HasUnicode
 }
 
 func init() {

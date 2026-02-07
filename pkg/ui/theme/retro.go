@@ -2,9 +2,11 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"strings"
 )
 
@@ -24,6 +26,10 @@ func (t *RetroTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 
 func (t *RetroTheme) Name() string        { return "Retro CRT" }
 func (t *RetroTheme) Description() string { return "Classic green-on-black terminal" }
+
+func (t *RetroTheme) IsCompatible(c caps.Capabilities) bool {
+	return c.ColorProfile <= termenv.ANSI
+}
 
 func (t *RetroTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	// Styles

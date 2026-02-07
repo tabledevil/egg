@@ -2,9 +2,10 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"strings"
 )
 
@@ -24,6 +25,10 @@ func (t *MinimalTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 
 func (t *MinimalTheme) Name() string        { return "Root Shell" }
 func (t *MinimalTheme) Description() string { return "Clean, minimal root shell access" }
+
+func (t *MinimalTheme) IsCompatible(c caps.Capabilities) bool {
+	return true
+}
 
 func (t *MinimalTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	gray := lipgloss.Color("#888888")

@@ -2,9 +2,11 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"fmt"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"math/rand"
 	"time"
 )
@@ -31,12 +33,18 @@ func (t *SneakersTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	return t, nil
 }
 
-func (t *SneakersTheme) Name() string { return "Setec Astronomy" }
+func (t *SneakersTheme) Name() string        { return "Setec Astronomy" }
 func (t *SneakersTheme) Description() string { return "Too Many Secrets" }
+
+func (t *SneakersTheme) IsCompatible(c caps.Capabilities) bool {
+	return c.ColorProfile <= termenv.ANSI
+}
 
 func (t *SneakersTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	boxWidth := 60
-	if boxWidth > width-4 { boxWidth = width-4 }
+	if boxWidth > width-4 {
+		boxWidth = width - 4
+	}
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).

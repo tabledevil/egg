@@ -2,18 +2,24 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
-	"github.com/charmbracelet/lipgloss"
+	"ctf-tool/pkg/ui/caps"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"strings"
 )
 
-type HackersTheme struct {}
+type HackersTheme struct{}
 
-func NewHackersTheme() Theme { return &HackersTheme{} }
-func (t *HackersTheme) Init() tea.Cmd { return nil }
+func NewHackersTheme() Theme                                { return &HackersTheme{} }
+func (t *HackersTheme) Init() tea.Cmd                       { return nil }
 func (t *HackersTheme) Update(msg tea.Msg) (Theme, tea.Cmd) { return t, nil }
-func (t *HackersTheme) Name() string { return "Zero Cool" }
-func (t *HackersTheme) Description() string { return "Messy, chaotic hacker style" }
+func (t *HackersTheme) Name() string                        { return "Zero Cool" }
+func (t *HackersTheme) Description() string                 { return "Messy, chaotic hacker style" }
+
+func (t *HackersTheme) IsCompatible(c caps.Capabilities) bool {
+	return c.ColorProfile <= termenv.ANSI
+}
 
 func (t *HackersTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	bg := lipgloss.Color("#000000")
