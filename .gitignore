@@ -1,5 +1,6 @@
 # Build artifacts
 ctf-tool
+main
 /bin/
 /build/
 /dist/
