@@ -2,6 +2,7 @@ package ui
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/theme"
 	"testing"
 	"time"
 
@@ -30,6 +31,27 @@ func TestResponsiveness_CtrlC(t *testing.T) {
 	}
 }
 
+func TestResponsiveness_QuitKeys(t *testing.T) {
+	cfg := &game.Config{
+		Questions: []game.Question{{ID: 1, Text: "Q1", Answer: "A1"}},
+	}
+	m := NewModel(cfg)
+
+	tests := []tea.KeyType{tea.KeyCtrlX, tea.KeyF12}
+	for _, keyType := range tests {
+		key := tea.KeyMsg{Type: keyType}
+		_, cmd := m.Update(key)
+		if cmd == nil {
+			t.Fatalf("expected tea.Quit command for key %v, got nil", keyType)
+		}
+
+		msg := cmd()
+		if _, ok := msg.(tea.QuitMsg); !ok {
+			t.Fatalf("command for key %v did not produce QuitMsg", keyType)
+		}
+	}
+}
+
 func TestResponsiveness_InputDuringTransition(t *testing.T) {
 	cfg := &game.Config{
 		Questions: []game.Question{{ID: 1, Text: "Q1", Answer: "A1"}},
@@ -52,6 +74,40 @@ func TestResponsiveness_InputDuringTransition(t *testing.T) {
 
 	if duration > 10*time.Millisecond {
 		t.Errorf("Update took too long (%v), potential blocking detected", duration)
+	}
+}
+
+func TestResponsiveness_ThemeUpdateCannotDropActiveTheme(t *testing.T) {
+	cfg := &game.Config{
+		Questions: []game.Question{{ID: 1, Text: "Q1", Answer: "A1"}},
+	}
+	m := NewModel(cfg)
+	m.State = StateQuestion
+	m.ActiveTheme = theme.NewDOSTheme()
+
+	_, _ = m.Update(game.TickMsg(time.Now()))
+	if m.ActiveTheme == nil {
+		t.Fatalf("active theme unexpectedly became nil after tick update")
+	}
+}
+
+func TestResponsiveness_ViewDoesNotLeakInputAnsiArtifacts(t *testing.T) {
+	cfg := &game.Config{
+		Questions: []game.Question{{ID: 1, Text: "Q1", Answer: "A1"}},
+	}
+	m := NewModel(cfg)
+	m.State = StateQuestion
+	m.ActiveTheme = theme.NewDOSTheme()
+
+	m.Input.SetValue("[7mT[0m\nX\rY")
+	sanitized := m.themeInputValue()
+	if sanitized != "T X Y" {
+		t.Fatalf("unexpected sanitized input value: %q", sanitized)
+	}
+
+	m.Input.SetValue("")
+	if m.themeInputValue() != "" {
+		t.Fatalf("empty input should not render placeholder text")
 	}
 }
 

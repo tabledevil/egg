@@ -8,9 +8,14 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"math/rand"
+	"regexp"
+	"strings"
 	"time"
 )
+
+var sgrTextPattern = regexp.MustCompile(`\[[0-9;]*m`)
 
 func tick() tea.Cmd {
 	return tea.Tick(time.Millisecond*33, func(t time.Time) tea.Msg {
@@ -68,7 +73,6 @@ func (m *Model) PickRandomTheme() tea.Cmd {
 	if len(theme.Registry) > 0 {
 		constructor := theme.Registry[rand.Intn(len(theme.Registry))]
 		m.ActiveTheme = constructor()
-		return m.ActiveTheme.Init()
 	}
 	return nil
 }
@@ -85,10 +89,7 @@ func (m *Model) StartTransition() tea.Cmd {
 	hint := ""
 	if m.ShowHint { hint = q.Hint }
 
-	oldView := ""
-	if m.ActiveTheme != nil {
-		oldView = m.ActiveTheme.View(m.Width, m.Height, &displayQ, m.Input.View(), hint)
-	}
+	oldView := m.safeThemeView(&displayQ, m.themeInputValue(), hint)
 
 	// 2. Advance State
 	m.CurrentQuestionIndex++
@@ -100,7 +101,7 @@ func (m *Model) StartTransition() tea.Cmd {
 	}
 
 	// 3. Pick New Theme
-	themeCmd := m.PickRandomTheme()
+	m.PickRandomTheme()
 
 	// 4. Capture New View (Preview)
 	m.Input.Reset()
@@ -112,10 +113,7 @@ func (m *Model) StartTransition() tea.Cmd {
 	newDisplayQ := newQ
 	newDisplayQ.Text = "█"
 
-	newView := ""
-	if m.ActiveTheme != nil {
-		newView = m.ActiveTheme.View(m.Width, m.Height, &newDisplayQ, m.Input.View(), "")
-	}
+	newView := m.safeThemeView(&newDisplayQ, m.themeInputValue(), "")
 
 	// 5. Create Transition
 	m.State = StateTransition
@@ -123,19 +121,16 @@ func (m *Model) StartTransition() tea.Cmd {
 		constructor := transition.Registry[rand.Intn(len(transition.Registry))]
 		m.ActiveTransition = constructor()
 		m.ActiveTransition.SetContent(oldView, newView)
-		return tea.Batch(themeCmd, m.ActiveTransition.Init())
+		return m.ActiveTransition.Init()
 	}
 
 	m.State = StateQuestion
-	return themeCmd
+	return nil
 }
 
 func (m Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, textinput.Blink, tick())
-	if m.ActiveTheme != nil {
-		cmds = append(cmds, m.ActiveTheme.Init())
-	}
 	return tea.Batch(cmds...)
 }
 
@@ -146,7 +141,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+		case tea.KeyCtrlC, tea.KeyCtrlX, tea.KeyEsc, tea.KeyF12:
 			return m, tea.Quit
 		case tea.KeyF1:
 			// Next Theme
@@ -186,15 +181,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeyEnter {
 			m.State = StateQuestion
 			m.TypewriterIndex = 0
-			if m.ActiveTheme != nil {
-				cmds = append(cmds, m.ActiveTheme.Init())
-			}
 		}
 
 	case StateTransition:
 		if m.ActiveTransition != nil {
 			var tCmd tea.Cmd
-			m.ActiveTransition, tCmd = m.ActiveTransition.Update(msg)
+			nextTransition, tCmd := m.ActiveTransition.Update(msg)
+			if nextTransition != nil {
+				m.ActiveTransition = nextTransition
+			}
 			cmds = append(cmds, tCmd)
 
 			if m.ActiveTransition.Done() {
@@ -209,7 +204,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Theme Update
 		if m.ActiveTheme != nil {
 			var tCmd tea.Cmd
-			m.ActiveTheme, tCmd = m.ActiveTheme.Update(msg)
+			nextTheme, tCmd := m.ActiveTheme.Update(msg)
+			if nextTheme != nil {
+				m.ActiveTheme = nextTheme
+			}
 			cmds = append(cmds, tCmd)
 		}
 
@@ -235,7 +233,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.TypewriterIndex < len(currentQ.Text) {
 				m.TypewriterIndex++
 			}
-			cmds = append(cmds, tick())
 		}
 
 	case StateSuccess:
@@ -263,7 +260,7 @@ func (m Model) View() string {
 
 	case StateTransition:
 		if m.ActiveTransition != nil {
-			return m.ActiveTransition.View(m.Width, m.Height)
+			return m.safeTransitionView()
 		}
 		return "Loading next level..."
 
@@ -285,7 +282,9 @@ func (m Model) View() string {
 
 		content := "Error: No Theme Selected"
 		if m.ActiveTheme != nil {
-			content = m.ActiveTheme.View(m.Width, m.Height, &displayQ, m.Input.View(), hint)
+			if rendered := m.safeThemeView(&displayQ, m.themeInputValue(), hint); rendered != "" {
+				content = rendered
+			}
 		}
 
 		// Overlay Demo Status
@@ -307,4 +306,40 @@ func (m Model) View() string {
 	}
 
 	return ""
+}
+
+func (m *Model) safeThemeView(q *game.Question, inputView, hint string) (view string) {
+	if m.ActiveTheme == nil || m.Width <= 0 || m.Height <= 0 {
+		return ""
+	}
+
+	defer func() {
+		if recover() != nil {
+			view = ""
+		}
+	}()
+
+	return m.ActiveTheme.View(m.Width, m.Height, q, inputView, hint)
+}
+
+func (m *Model) safeTransitionView() (view string) {
+	if m.ActiveTransition == nil || m.Width <= 0 || m.Height <= 0 {
+		return "Loading next level..."
+	}
+
+	defer func() {
+		if recover() != nil {
+			view = "Loading next level..."
+		}
+	}()
+
+	return m.ActiveTransition.View(m.Width, m.Height)
+}
+
+func (m *Model) themeInputValue() string {
+	plain := ansi.Strip(m.Input.Value())
+	plain = sgrTextPattern.ReplaceAllString(plain, "")
+	plain = strings.ReplaceAll(plain, "\n", " ")
+	plain = strings.ReplaceAll(plain, "\r", " ")
+	return plain
 }
