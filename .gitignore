@@ -1,0 +1,35 @@
+# Build artifacts
+ctf-tool
+/bin/
+/build/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Coverage and profiling
+*.cover
+*.coverprofile
+*.pprof
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+
+# Python virtual environments
+.venv/
+__pycache__/
