@@ -9,7 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"math/rand"
+	"sort"
 	"time"
+	"unicode/utf8"
 )
 
 func tick() tea.Cmd {
@@ -29,7 +31,7 @@ type Model struct {
 	ActiveTransition     transition.Transition
 
 	// Animation State
-	TypewriterIndex    int
+	TypewriterIndex int
 
 	// UI Components
 	Input textinput.Model
@@ -68,12 +70,191 @@ func (m *Model) PickRandomTheme() tea.Cmd {
 	if len(theme.Registry) > 0 {
 		constructor := theme.Registry[rand.Intn(len(theme.Registry))]
 		m.ActiveTheme = constructor()
-		return m.ActiveTheme.Init()
-	}
-	return nil
+type questionLayout struct {
+	maxLineChars int
+	maxLines     int
+	multiline    bool
 }
 
-func (m *Model) StartTransition() tea.Cmd {
+func (m *Model) pickBestThemeForQuestion(question string) {
+	if len(theme.Registry) == 0 {
+		return
+	}
+
+	type candidate struct {
+		theme theme.Theme
+		score int
+	}
+
+	cands := make([]candidate, 0, len(theme.Registry))
+	for _, constructor := range theme.Registry {
+		t := constructor()
+		_, shown, truncated, layout := m.fitQuestionForTheme(t, question)
+		score := shown
+		if layout.multiline {
+			score += 3
+		}
+		if !truncated {
+			score += 2000
+		}
+		cands = append(cands, candidate{theme: t, score: score})
+	}
+
+	rand.Shuffle(len(cands), func(i, j int) { cands[i], cands[j] = cands[j], cands[i] })
+	sort.SliceStable(cands, func(i, j int) bool { return cands[i].score > cands[j].score })
+	m.ActiveTheme = cands[0].theme
+}
+
+func (m *Model) questionLayoutForTheme(t theme.Theme) questionLayout {
+	minWidth := func(v int) int {
+		if v < 8 {
+			return 8
+		}
+		return v
+	}
+
+	switch t.(type) {
+	case *theme.MatrixTheme:
+		boxW := min(60, m.Width-4)
+		boxH := min(15, m.Height-4)
+		return questionLayout{maxLineChars: minWidth(boxW - 4), maxLines: max(1, boxH-8), multiline: true}
+	case *theme.VHSTheme:
+		return questionLayout{maxLineChars: minWidth(m.Width - 8), maxLines: max(1, m.Height/2), multiline: true}
+	case *theme.BBSTheme:
+		return questionLayout{maxLineChars: minWidth(m.Width - 14), maxLines: 2, multiline: true}
+	case *theme.C64Theme:
+		return questionLayout{maxLineChars: minWidth(m.Width - 15), maxLines: 2, multiline: true}
+	case *theme.DOSTheme:
+		winW := min(60, m.Width-2)
+		return questionLayout{maxLineChars: minWidth(winW - 4), maxLines: 2, multiline: true}
+	case *theme.GameboyTheme:
+		return questionLayout{maxLineChars: 34, maxLines: 2, multiline: true}
+	case *theme.NESTheme:
+		boxW := min(50, m.Width-4)
+		return questionLayout{maxLineChars: minWidth(boxW - 4), maxLines: 2, multiline: true}
+	default:
+		return questionLayout{maxLineChars: minWidth(m.Width - 12), maxLines: 1, multiline: false}
+	}
+}
+
+func (m *Model) fitQuestionForTheme(t theme.Theme, text string) (string, int, bool, questionLayout) {
+	layout := m.questionLayoutForTheme(t)
+	if layout.multiline {
+		lines, truncated := wrapText(text, layout.maxLineChars, layout.maxLines)
+		shown := utf8.RuneCountInString(strings.Join(lines, ""))
+		return strings.Join(lines, "\n"), shown, truncated, layout
+	}
+
+	line, truncated := truncateWithEllipsis(text, layout.maxLineChars)
+	return line, utf8.RuneCountInString(line), truncated, layout
+}
+
+func wrapText(text string, maxWidth, maxLines int) ([]string, bool) {
+	if maxWidth < 1 {
+		maxWidth = 1
+	}
+	if maxLines < 1 {
+		maxLines = 1
+	}
+
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}, false
+	}
+
+	lines := make([]string, 0, maxLines)
+	current := ""
+	appendLine := func(line string) bool {
+		if len(lines) >= maxLines {
+			return false
+		}
+		lines = append(lines, line)
+		return true
+	}
+
+	for _, word := range words {
+		runes := []rune(word)
+		for len(runes) > maxWidth {
+			if current != "" {
+				if !appendLine(current) {
+					return appendEllipsis(lines, maxWidth), true
+				}
+				current = ""
+			}
+			if !appendLine(string(runes[:maxWidth])) {
+				return appendEllipsis(lines, maxWidth), true
+			}
+			runes = runes[maxWidth:]
+		}
+		word = string(runes)
+
+		candidate := word
+		if current != "" {
+			candidate = current + " " + word
+		}
+		if utf8.RuneCountInString(candidate) <= maxWidth {
+			current = candidate
+			continue
+		}
+
+		if !appendLine(current) {
+			return appendEllipsis(lines, maxWidth), true
+		}
+		current = word
+	}
+
+	if current != "" {
+		if !appendLine(current) {
+			return appendEllipsis(lines, maxWidth), true
+		}
+	}
+
+	return lines, false
+}
+
+func appendEllipsis(lines []string, maxWidth int) []string {
+	if len(lines) == 0 {
+		return []string{"…"}
+	}
+	lines[len(lines)-1] = forceEllipsis(lines[len(lines)-1], maxWidth)
+	return lines
+}
+
+func forceEllipsis(text string, maxWidth int) string {
+	if maxWidth <= 1 {
+		return "…"
+	}
+	r := []rune(text)
+	if len(r) >= maxWidth {
+		return string(r[:maxWidth-1]) + "…"
+	}
+	return text + "…"
+}
+
+func truncateWithEllipsis(text string, maxWidth int) (string, bool) {
+	r := []rune(text)
+	if len(r) <= maxWidth {
+		return text, false
+	}
+	if maxWidth <= 1 {
+		return "…", true
+	}
+	return string(r[:maxWidth-1]) + "…", true
+}
+
+	if m.ActiveTheme != nil {
+		visibleText, _, _, _ = m.fitQuestionForTheme(m.ActiveTheme, visibleText)
+	}
+	if m.ShowHint {
+		hint = q.Hint
+	}
+	}
+	// 3. Pick New Theme based on available terminal space (re-evaluated at transition time).
+	m.pickBestThemeForQuestion(m.Config.Questions[m.CurrentQuestionIndex].Text)
+
+			if m.CurrentQuestionIndex < 0 {
+				m.CurrentQuestionIndex = 0
+			}
 	// 1. Capture Old View
 	q := m.Config.Questions[m.CurrentQuestionIndex]
 	visibleText := q.Text
@@ -246,6 +427,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+		if m.ActiveTheme != nil {
+			visibleText, _, _, _ = m.fitQuestionForTheme(m.ActiveTheme, visibleText)
+		}
 	if m.Width == 0 {
 		return "Loading..."
 	}
@@ -307,4 +491,18 @@ func (m Model) View() string {
 	}
 
 	return ""
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

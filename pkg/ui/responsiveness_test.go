@@ -2,6 +2,7 @@ package ui
 
 import (
 	"ctf-tool/pkg/game"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,5 +64,43 @@ func TestModelInit(t *testing.T) {
 	cmd := m.Init()
 	if cmd == nil {
 		t.Errorf("Init should return initial commands")
+	}
+}
+
+func TestQuestionFormatting_SingleLineThemesUseEllipsis(t *testing.T) {
+	cfg := &game.Config{Questions: []game.Question{{ID: 1, Text: "Q1", Answer: "A1"}}}
+	m := NewModel(cfg)
+	m.Width = 40
+	m.Height = 20
+	m.ActiveTheme = theme.NewGhostInShellTheme()
+
+	formatted, _, truncated, layout := m.fitQuestionForTheme(m.ActiveTheme, "this is a very long question that definitely exceeds one line")
+	if layout.multiline {
+		t.Fatalf("expected one-line layout for ghost theme")
+	}
+	if !truncated {
+		t.Fatalf("expected truncation for one-line theme")
+	}
+	if formatted == "" || []rune(formatted)[len([]rune(formatted))-1] != '…' {
+		t.Fatalf("expected ellipsis suffix, got %q", formatted)
+	}
+}
+
+func TestQuestionFormatting_MultilineWraps(t *testing.T) {
+	cfg := &game.Config{Questions: []game.Question{{ID: 1, Text: "Q1", Answer: "A1"}}}
+	m := NewModel(cfg)
+	m.Width = 44
+	m.Height = 20
+	m.ActiveTheme = theme.NewDOSTheme()
+
+	formatted, _, truncated, layout := m.fitQuestionForTheme(m.ActiveTheme, "one two three four five six seven eight nine ten eleven")
+	if !layout.multiline {
+		t.Fatalf("expected multiline layout for DOS")
+	}
+	if !strings.Contains(formatted, "\n") {
+		t.Fatalf("expected wrapped output with newline, got %q", formatted)
+	}
+	if truncated {
+		t.Fatalf("did not expect truncation for this prompt")
 	}
 }
