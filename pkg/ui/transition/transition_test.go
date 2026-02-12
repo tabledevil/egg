@@ -2,83 +2,86 @@ package transition
 
 import (
 	"ctf-tool/pkg/game"
-	"ctf-tool/pkg/ui/caps"
+	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/muesli/termenv"
 )
 
-func TestTransitions(t *testing.T) {
-	fullCaps := caps.Capabilities{
-		ColorProfile:  termenv.TrueColor,
-		HasUnicode:    true,
-		IsInteractive: true,
+var ansiRegexp = regexp.MustCompile("\\x1b\\[[0-9;]*[A-Za-z]")
+
+func stripANSICodes(in string) string {
+	return ansiRegexp.ReplaceAllString(in, "")
+}
+
+func countLines(s string) int {
+	if s == "" {
+		return 0
 	}
+	return strings.Count(s, "\n") + 1
+}
+
+func buildFrame(label string, width, height int) string {
+	var b strings.Builder
+	for y := 0; y < height; y++ {
+		line := fmt.Sprintf("%s LINE %02d", label, y)
+		if len(line) < width {
+			line += strings.Repeat(" ", width-len(line))
+		} else if len(line) > width {
+			line = line[:width]
+		}
+		b.WriteString(line)
+		if y < height-1 {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
+func TestTransitionsRenderAndComplete(t *testing.T) {
+	if len(Registry) == 0 {
+		t.Fatalf("expected transition registry to be populated")
+	}
+
+	width, height := 60, 20
+	oldView := buildFrame("OLD", width, height)
+	newView := buildFrame("NEW", width, height)
 
 	for _, constructor := range Registry {
-		tr := constructor()
+		instance := constructor()
+		name := fmt.Sprintf("transition_%T", instance)
 
-		// 1. Init
-		cmd := tr.Init()
-		if cmd == nil {
-			// Some transitions might return nil Init, which is valid.
-		}
+		t.Run(name, func(t *testing.T) {
+			tr := constructor()
+			tr.SetContent(oldView, newView)
 
-		// 2. Compatibility
-		if !tr.IsCompatible(fullCaps) {
-			t.Errorf("Transition should be compatible with full capabilities")
-		}
-
-		// 3. View (Initial)
-		view := tr.View(80, 24)
-		if len(view) == 0 {
-			t.Errorf("Transition View returned empty string initially")
-		}
-
-		// Use strings package to avoid unused import error
-		if strings.Contains(view, "error") {
-			t.Errorf("Transition view contains error")
-		}
-
-		// 4. Update Loop Simulation
-		for i := 0; i < 100; i++ {
-			msg := game.TickMsg(time.Now())
-			var newCmd tea.Cmd
-			tr, newCmd = tr.Update(msg)
-			_ = newCmd
-
-			if tr.Done() {
-				break
+			if cmd := tr.Init(); cmd == nil {
+				t.Errorf("Init returned nil command")
 			}
-		}
 
-		view = tr.View(80, 24)
-		if len(view) == 0 {
-			t.Errorf("Transition View returned empty string after update")
-		}
-	}
-}
+			view := tr.View(width, height)
+			clean := stripANSICodes(view)
+			if got := countLines(clean); got != height {
+				t.Fatalf("expected %d lines, got %d", height, got)
+			}
 
-func TestLoadingTransitionUnicode(t *testing.T) {
-	l := NewLoadingTransition()
-	asciiCaps := caps.Capabilities{
-		HasUnicode: false,
-	}
-	if l.IsCompatible(asciiCaps) {
-		t.Errorf("Loading transition requires Unicode")
-	}
-}
+			const maxTicks = 1000
+			done := tr.Done()
+			for tick := 0; tick < maxTicks && !done; tick++ {
+				next, cmd := tr.Update(game.TickMsg(time.Now()))
+				if cmd == nil {
+					t.Fatalf("update for %s did not request another tick", name)
+				}
+				if next != nil {
+					tr = next
+				}
+				done = tr.Done()
+			}
 
-func TestTicTacToeCompatibility(t *testing.T) {
-	tt := NewTicTacToeTransition()
-	asciiCaps := caps.Capabilities{
-		ColorProfile: termenv.Ascii,
-		HasUnicode:   false,
-	}
-	if !tt.IsCompatible(asciiCaps) {
-		t.Errorf("TicTacToe should be compatible everywhere")
+			if !tr.Done() {
+				t.Fatalf("transition %s never finished after %d ticks", name, maxTicks)
+			}
+		})
 	}
 }
