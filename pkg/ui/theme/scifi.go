@@ -436,12 +436,6 @@ func drawBox(c *canvas.Canvas, x, y, w, h int, style lipgloss.Style) {
 	c.SetChar(x+w-1, y+h-1, '┘', style)
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 func init() {
 	Register(NewMatrixTheme)

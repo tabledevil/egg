@@ -23,7 +23,7 @@ func main() {
 	// Obfuscate
 	obfuscated := make([]byte, len(data))
 	for i, b := range data {
-		obfuscated[i] = b ^ xorKey
+		obfuscated[i] = b ^ (xorKey + byte(i))
 	}
 
 	// Generate Go code
@@ -48,7 +48,7 @@ func main() {
 	fmt.Fprintln(f, "func LoadRawData() []byte {")
 	fmt.Fprintln(f, "\tdecoded := make([]byte, len(embeddedData))")
 	fmt.Fprintln(f, "\tfor i, b := range embeddedData {")
-	fmt.Fprintf(f, "\t\tdecoded[i] = b ^ 0x%02x\n", xorKey)
+	fmt.Fprintf(f, "\t\tdecoded[i] = b ^ (0x%02x + byte(i))\n", xorKey)
 	fmt.Fprintln(f, "\t}")
 	fmt.Fprintln(f, "\treturn decoded")
 	fmt.Fprintln(f, "}")

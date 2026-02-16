@@ -2,6 +2,7 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"ctf-tool/pkg/ui/canvas"
 	"fmt"
 	"math"
@@ -214,7 +215,7 @@ func (t *VHSTheme) View(width, height int, q *game.Question, inputView string, h
 	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
 
 	// Timestamp
-	ts := time.Now().Format("PM 03:04:05")
+	ts := time.Now().Format("03:04:05 PM")
 	c.SetString(2, height-2, "PLAY  SP  "+ts, textStyle)
 
 	content := fmt.Sprintf("%s\n\n> %s", q.Text, inputView)
@@ -256,6 +257,7 @@ type SovietTheme struct {
 func NewSovietTheme() Theme { return &SovietTheme{} }
 func (t *SovietTheme) Name() string { return "Soviet Terminal" }
 func (t *SovietTheme) Description() string { return "Top Secret / GRU" }
+func (t *SovietTheme) IsCompatible(c caps.Capabilities) bool { return c.HasUnicode }
 
 func (t *SovietTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	c := canvas.New(width, height)

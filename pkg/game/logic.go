@@ -53,15 +53,6 @@ func LevenshteinDistance(s1, s2 string) int {
 	return matrix[n][m]
 }
 
-func min(vals ...int) int {
-	m := vals[0]
-	for _, v := range vals[1:] {
-		if v < m {
-			m = v
-		}
-	}
-	return m
-}
 
 // CheckAnswer validates the user input against the correct answer with fuzzy matching
 func CheckAnswer(input, correct string) bool {

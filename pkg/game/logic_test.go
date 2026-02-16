@@ -23,6 +23,9 @@ func TestCheckAnswer(t *testing.T) {
 		{"somethingreallylong", "somethingreallylong", true},
 		{"somethingrealllong", "somethingreallylong", true}, // 1 typo
 		{"somethngrealllong", "somethingreallylong", true},  // 2 typos
+		{"abcd", "abdc", true}, // transposition allowed
+		{"ab", "ba", false}, // transposition disallowed (short)
+		{"ab", "ba", false}, // transposition disallowed (short)
 	}
 
 	for _, tt := range tests {

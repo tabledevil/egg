@@ -67,26 +67,6 @@ func (c *Canvas) SetString(x, y int, text string, style lipgloss.Style) {
 }
 
 // Render converts the grid to a string for Bubble Tea
-func (c *Canvas) Render() string {
-	var b strings.Builder
-
-	for y := 0; y < c.Height; y++ {
-		rowBuilder := strings.Builder{}
-		for x := 0; x < c.Width; x++ {
-			cell := c.Grid[y][x]
-			// Optimization: If style is empty, just write the rune
-			// This might need checking if lipgloss.Style is "zero" value effectively
-			// For now, we render every cell.
-			rowBuilder.WriteString(cell.Style.Render(string(cell.Rune)))
-		}
-		if y < c.Height-1 {
-			rowBuilder.WriteRune('\n')
-		}
-		b.WriteString(rowBuilder.String())
-	}
-
-	return b.String()
-}
 
 // DrawBox draws a border box
 func (c *Canvas) DrawBox(x, y, w, h int, style lipgloss.Style) {
@@ -114,4 +94,20 @@ func (c *Canvas) Fill(x, y, w, h int, char rune, style lipgloss.Style) {
 			c.SetChar(x+dx, y+dy, char, style)
 		}
 	}
+}
+// Render converts the grid to a string for Bubble Tea
+func (c *Canvas) Render() string {
+	var b strings.Builder
+	b.Grow(c.Width * c.Height * 10)
+
+	for y := 0; y < c.Height; y++ {
+		for x := 0; x < c.Width; x++ {
+			cell := c.Grid[y][x]
+			b.WriteString(cell.Style.Render(string(cell.Rune)))
+		}
+		if y < c.Height-1 {
+			b.WriteRune('\n')
+		}
+	}
+	return b.String()
 }
