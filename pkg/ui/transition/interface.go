@@ -1,6 +1,7 @@
 package transition
 
 import (
+	"ctf-tool/pkg/ui/caps"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -11,6 +12,14 @@ type Transition interface {
 	View(width, height int) string
 	Done() bool
 	SetContent(oldView, newView string)
+}
+
+// CapabilityAware is an optional interface that transitions can implement to
+// declare whether they should be used in the current terminal environment.
+//
+// Transitions that don't implement this are treated as always compatible.
+type CapabilityAware interface {
+	IsCompatible(c caps.Capabilities) bool
 }
 
 // Constructor for creating new transition instances

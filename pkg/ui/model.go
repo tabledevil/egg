@@ -2,6 +2,7 @@ package ui
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	"ctf-tool/pkg/ui/theme"
 	"ctf-tool/pkg/ui/transition"
 	"fmt"
@@ -27,6 +28,13 @@ type Model struct {
 	Config *game.Config
 	State  GameState
 
+	// Terminal capabilities used for compatibility-aware theme selection.
+	Caps caps.Capabilities
+
+	// Showcase mode cycles through themes/transitions using a stable placeholder
+	// question, rather than game progression.
+	Showcase bool
+
 	// Game State
 	CurrentQuestionIndex int
 	WrongAnswers         int
@@ -34,7 +42,7 @@ type Model struct {
 	ActiveTransition     transition.Transition
 
 	// Animation State
-	TypewriterIndex    int
+	TypewriterIndex int
 
 	// UI Components
 	Input textinput.Model
@@ -49,6 +57,9 @@ type Model struct {
 	// Demo
 	AutoDemo bool
 	DemoTick int
+
+	showcaseThemeCursor      int
+	showcaseTransitionCursor int
 }
 
 func NewModel(config *game.Config) Model {
@@ -63,17 +74,119 @@ func NewModel(config *game.Config) Model {
 	m := Model{
 		Config: config,
 		State:  StateIntro,
+		Caps:   caps.Detect(),
 		Input:  ti,
 	}
 	m.PickRandomTheme()
 	return m
 }
 
-func (m *Model) PickRandomTheme() tea.Cmd {
-	if len(theme.Registry) > 0 {
-		constructor := theme.Registry[rand.Intn(len(theme.Registry))]
-		m.ActiveTheme = constructor()
+func (m *Model) EnableShowcase() {
+	m.Showcase = true
+	m.AutoDemo = true
+	m.ShowHint = true
+
+	// Prefer a stable first question.
+	if len(m.Config.Questions) > 0 {
+		m.CurrentQuestionIndex = 0
+		m.TypewriterIndex = len(m.Config.Questions[0].Text)
 	}
+
+	// Skip intro for quick visual inspection.
+	m.State = StateQuestion
+
+	// Provide a visible placeholder input so input fields can be evaluated too.
+	m.Input.SetValue("hunter2")
+}
+
+func (m *Model) PickRandomTheme() tea.Cmd {
+	if len(theme.Registry) == 0 {
+		m.ActiveTheme = nil
+		return nil
+	}
+
+	var candidates []theme.Theme
+	for _, constructor := range theme.Registry {
+		t := constructor()
+		if aware, ok := t.(theme.CapabilityAware); ok {
+			if !aware.IsCompatible(m.Caps) {
+				continue
+			}
+		}
+		candidates = append(candidates, t)
+	}
+
+	// If everything opted out (e.g. very limited terminal), fall back to picking
+	// something rather than failing the UI entirely.
+	if len(candidates) == 0 {
+		m.ActiveTheme = theme.Registry[rand.Intn(len(theme.Registry))]()
+		return nil
+	}
+
+	m.ActiveTheme = candidates[rand.Intn(len(candidates))]
+	return nil
+}
+
+func (m *Model) pickNextCompatibleTheme() {
+	if len(theme.Registry) == 0 {
+		m.ActiveTheme = nil
+		return
+	}
+
+	// Try at most N constructors to find the next compatible one.
+	for i := 0; i < len(theme.Registry); i++ {
+		idx := (m.showcaseThemeCursor + 1 + i) % len(theme.Registry)
+		t := theme.Registry[idx]()
+		if aware, ok := t.(theme.CapabilityAware); ok && !aware.IsCompatible(m.Caps) {
+			continue
+		}
+		m.ActiveTheme = t
+		m.showcaseThemeCursor = idx
+		return
+	}
+
+	// If everything opted out, pick something anyway.
+	m.ActiveTheme = theme.Registry[(m.showcaseThemeCursor+1)%len(theme.Registry)]()
+	m.showcaseThemeCursor = (m.showcaseThemeCursor + 1) % len(theme.Registry)
+}
+
+func (m *Model) PickNextTheme() tea.Cmd {
+	m.pickNextCompatibleTheme()
+	return nil
+}
+
+func (m *Model) StartShowcaseTransition() tea.Cmd {
+	if len(m.Config.Questions) == 0 {
+		return nil
+	}
+
+	// 1. Capture Old View (fully visible text).
+	q := m.Config.Questions[m.CurrentQuestionIndex]
+	displayQ := q
+	displayQ.Text = q.Text
+	hint := ""
+	if m.ShowHint {
+		hint = q.Hint
+	}
+	oldView := m.safeThemeView(&displayQ, m.themeInputValue(), hint)
+
+	// 2. Pick next compatible theme.
+	m.pickNextCompatibleTheme()
+
+	// 3. Capture New View (same question, different theme).
+	newView := m.safeThemeView(&displayQ, m.themeInputValue(), hint)
+
+	// 4. Create next transition (sequential).
+	m.State = StateTransition
+	if len(transition.Registry) > 0 {
+		idx := m.showcaseTransitionCursor % len(transition.Registry)
+		m.showcaseTransitionCursor = (m.showcaseTransitionCursor + 1) % len(transition.Registry)
+		m.ActiveTransition = transition.Registry[idx]()
+		m.ActiveTransition.SetContent(oldView, newView)
+		return m.ActiveTransition.Init()
+	}
+
+	m.State = StateQuestion
 	return nil
 }
 
@@ -87,7 +200,9 @@ func (m *Model) StartTransition() tea.Cmd {
 	displayQ := q
 	displayQ.Text = visibleText
 	hint := ""
-	if m.ShowHint { hint = q.Hint }
+	if m.ShowHint {
+		hint = q.Hint
+	}
 
 	oldView := m.safeThemeView(&displayQ, m.themeInputValue(), hint)
 
@@ -144,13 +259,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC, tea.KeyCtrlX, tea.KeyEsc, tea.KeyF12:
 			return m, tea.Quit
 		case tea.KeyF1:
-			// Next Theme
-			cmds = append(cmds, m.PickRandomTheme())
+			// Theme cycling
+			if m.Showcase {
+				cmds = append(cmds, m.PickNextTheme())
+			} else {
+				cmds = append(cmds, m.PickRandomTheme())
+			}
 		case tea.KeyF2:
-			// Force Transition (stay on same Q)
-			m.CurrentQuestionIndex--
-			if m.CurrentQuestionIndex < 0 { m.CurrentQuestionIndex = 0 }
-			cmds = append(cmds, m.StartTransition())
+			// Transition cycling
+			if m.Showcase {
+				cmds = append(cmds, m.StartShowcaseTransition())
+			} else {
+				// Force Transition (stay on same Q)
+				m.CurrentQuestionIndex--
+				if m.CurrentQuestionIndex < 0 {
+					m.CurrentQuestionIndex = 0
+				}
+				cmds = append(cmds, m.StartTransition())
+			}
 		case tea.KeyF3:
 			m.AutoDemo = !m.AutoDemo
 		}
@@ -166,7 +292,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.DemoTick > 150 { // ~5 seconds
 				m.DemoTick = 0
 				if m.State == StateQuestion {
-					cmds = append(cmds, m.StartTransition())
+					if m.Showcase {
+						cmds = append(cmds, m.StartShowcaseTransition())
+					} else {
+						cmds = append(cmds, m.StartTransition())
+					}
 				}
 			}
 		}

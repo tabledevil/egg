@@ -17,22 +17,22 @@ import (
 
 type MatrixTheme struct {
 	BaseTheme
-	columns    []matrixColumn
+	columns     []matrixColumn
 	initialized bool
 }
 
 type matrixColumn struct {
-	x, y       float64
-	speed      float64
-	length     int
-	chars      []rune
+	x, y   float64
+	speed  float64
+	length int
+	chars  []rune
 }
 
 func NewMatrixTheme() Theme {
 	return &MatrixTheme{}
 }
 
-func (t *MatrixTheme) Name() string { return "Matrix" }
+func (t *MatrixTheme) Name() string        { return "Matrix" }
 func (t *MatrixTheme) Description() string { return "The Digital Rain" }
 
 func (t *MatrixTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -130,7 +130,7 @@ func (t *MatrixTheme) View(width, height int, q *game.Question, inputView string
 	currentY := boxY + 2
 	for _, line := range lines {
 		// Word wrap (simple)
-		if len(line) > boxWidth - 4 {
+		if len(line) > boxWidth-4 {
 			// Very basic wrapping
 			c.SetString(boxX+2, currentY, line[:boxWidth-4], textStyle)
 			c.SetString(boxX+2, currentY+1, line[boxWidth-4:], textStyle)
@@ -165,7 +165,7 @@ func NewCyberpunkTheme() Theme {
 	return &CyberpunkTheme{}
 }
 
-func (t *CyberpunkTheme) Name() string { return "Cyberpunk 2077" }
+func (t *CyberpunkTheme) Name() string        { return "Cyberpunk 2077" }
 func (t *CyberpunkTheme) Description() string { return "Night City Glitch" }
 
 func (t *CyberpunkTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -232,8 +232,8 @@ type TronTheme struct {
 	gridOffset float64
 }
 
-func NewTronTheme() Theme { return &TronTheme{} }
-func (t *TronTheme) Name() string { return "The Grid" }
+func NewTronTheme() Theme                { return &TronTheme{} }
+func (t *TronTheme) Name() string        { return "The Grid" }
 func (t *TronTheme) Description() string { return "Digital Frontier" }
 
 func (t *TronTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -283,7 +283,7 @@ func (t *TronTheme) View(width, height int, q *game.Question, inputView string, 
 	// Horizontal lines moving
 	// Logarithmic spacing
 	for i := 0; i < 20; i++ {
-		offset := (float64(i) * 2) + (t.gridOffset/5) // Moving
+		offset := (float64(i) * 2) + (t.gridOffset / 5) // Moving
 		y := horizonY + int(math.Pow(1.5, offset))
 		if y < height {
 			c.SetString(0, y, strings.Repeat("─", width), darkStyle)
@@ -309,8 +309,8 @@ type AlienTheme struct {
 	cursorBlink bool
 }
 
-func NewAlienTheme() Theme { return &AlienTheme{} }
-func (t *AlienTheme) Name() string { return "Nostromo" }
+func NewAlienTheme() Theme                { return &AlienTheme{} }
+func (t *AlienTheme) Name() string        { return "Nostromo" }
 func (t *AlienTheme) Description() string { return "MU-TH-UR 6000" }
 
 func (t *AlienTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -364,13 +364,13 @@ type SystemShockTheme struct {
 	corruptionLevel float64
 }
 
-func NewSystemShockTheme() Theme { return &SystemShockTheme{} }
-func (t *SystemShockTheme) Name() string { return "Citadel" }
+func NewSystemShockTheme() Theme                { return &SystemShockTheme{} }
+func (t *SystemShockTheme) Name() string        { return "Citadel" }
 func (t *SystemShockTheme) Description() string { return "Look at you, Hacker" }
 
 func (t *SystemShockTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
-		t.corruptionLevel = math.Sin(float64(time.Now().UnixNano())/1e9) * 0.5 + 0.5
+		t.corruptionLevel = math.Sin(float64(time.Now().UnixNano())/1e9)*0.5 + 0.5
 		return t, Tick()
 	}
 	return t, nil
@@ -394,6 +394,13 @@ func (t *SystemShockTheme) View(width, height int, q *game.Question, inputView s
 	eyeY := 5
 	c.SetString(eyeX-5, eyeY, "[  O  ]", red.Bold(true))
 
+	// Glitch blocks (draw before the message so we don't overwrite the question/input).
+	for i := 0; i < 5; i++ {
+		x := rand.Intn(width)
+		y := rand.Intn(height)
+		c.SetString(x, y, "ERR", lipgloss.NewStyle().Background(lipgloss.Color("#FF0000")).Foreground(lipgloss.Color("#000000")))
+	}
+
 	// Message
 	msg := q.Text
 	if rand.Float64() < 0.1 {
@@ -405,13 +412,6 @@ func (t *SystemShockTheme) View(width, height int, q *game.Question, inputView s
 
 	if hint != "" {
 		c.SetString(10, 14, "DATA FRAGMENT: "+hint, grey)
-	}
-
-	// Glitch blocks
-	for i := 0; i < 5; i++ {
-		x := rand.Intn(width)
-		y := rand.Intn(height)
-		c.SetString(x, y, "ERR", lipgloss.NewStyle().Background(lipgloss.Color("#FF0000")).Foreground(lipgloss.Color("#000000")))
 	}
 
 	return c.Render()
@@ -437,7 +437,9 @@ func drawBox(c *canvas.Canvas, x, y, w, h int, style lipgloss.Style) {
 }
 
 func min(a, b int) int {
-	if a < b { return a }
+	if a < b {
+		return a
+	}
 	return b
 }
 

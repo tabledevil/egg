@@ -26,3 +26,6 @@ Run the tool:
 ## Customization
 - **Themes:** Check `pkg/ui/theme/` to add new visual styles.
 - **Logic:** Answer validation logic is in `pkg/game/logic.go`.
+
+### Theme Compatibility Note
+Some themes may depend on terminal capabilities (colors, Unicode, etc.). If you add a theme that renders the question text in a heavily transformed way (e.g. ASCII-art font, leetspeak, or Unicode substitutions), it must also render a readable plain-text version of the question somewhere on-screen so the tool remains usable and automated rendering tests can still validate output.

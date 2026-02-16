@@ -2,12 +2,17 @@ package theme
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/caps"
 	tea "github.com/charmbracelet/bubbletea"
 	"time"
 )
 
 // BaseTheme provides common functionality for all themes
 type BaseTheme struct{}
+
+// IsCompatible provides a safe default: themes work everywhere unless they opt
+// into stricter checks by overriding this method.
+func (b BaseTheme) IsCompatible(c caps.Capabilities) bool { return true }
 
 func (b *BaseTheme) Init() tea.Cmd {
 	return Tick()
