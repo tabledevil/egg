@@ -50,13 +50,53 @@ func (t *SneakersTheme) View(width, height int, q *game.Question, inputView stri
 
 	// Box - expanded to fit hint
 	boxW := min(60, width-4)
-	boxH := 10
+	innerW := boxW - 4
+
+	questionLines := wrapText(q.Text, innerW)
+	inputLines := wrapLabeled("> ", inputView, innerW)
+
+	baseH := 10
+	if hint != "" {
+		baseH = 13
+	}
+	extraH := 0
+	if len(questionLines) > 1 {
+		extraH += min(len(questionLines)-1, 3)
+	}
+	if len(inputLines) > 1 {
+		extraH += min(len(inputLines)-1, 2)
+	}
+	boxH := baseH + extraH
+	maxBoxH := height - 2
+	if boxH > maxBoxH {
+		boxH = maxBoxH
+	}
+	if boxH < 8 {
+		boxH = 8
+	}
+
+	contentRows := boxH - 2
+	reserved := 1 + 1 + 1 + len(inputLines)
+	if hint != "" {
+		reserved += 1 + 1
+	}
+	questionMax := contentRows - reserved
+	if questionMax < 1 {
+		questionMax = 1
+	}
+	questionLines = clampLines(questionLines, questionMax, innerW)
+
+	remaining := contentRows - (1 + 1 + len(questionLines) + 1)
+	if hint != "" {
+		remaining--
+	}
+	if remaining < 1 {
+		remaining = 1
+	}
+	inputLines = clampLines(inputLines, remaining, innerW)
+
 	boxX := (width - boxW) / 2
 	boxY := (height - boxH) / 2
-	if hint != "" {
-		boxH = 13
-		boxY = (height - boxH) / 2
-	}
 
 	c.Fill(boxX, boxY, boxW, boxH, ' ', lipgloss.NewStyle().Background(lipgloss.Color("#000000")))
 	c.DrawBox(boxX, boxY, boxW, boxH, green)
@@ -64,37 +104,69 @@ func (t *SneakersTheme) View(width, height int, q *game.Question, inputView stri
 	// Content
 	c.SetString(boxX+2, boxY+2, "DECRYPTING MESSAGE...", green)
 
-	// "Scrambled" question that reveals itself
-	// In a real implementation we'd track per-character lock status.
-	// Here we simulate it by locking more chars over time based on tick?
-	// Actually, just show static text for now but surrounded by scramble
-	c.SetString(boxX+2, boxY+4, q.Text, green)
+	row := boxY + 4
+	for _, line := range questionLines {
+		if row >= boxY+boxH-1 {
+			break
+		}
+		c.SetString(boxX+2, row, line, green)
+		row++
+	}
 
-	c.SetString(boxX+2, boxY+7, "> "+inputView, green)
+	if row < boxY+boxH-1 {
+		row++
+	}
+
+	for _, line := range inputLines {
+		if row >= boxY+boxH-1 {
+			break
+		}
+		c.SetString(boxX+2, row, line, green)
+		row++
+	}
 
 	// Hint with slot machine animation
 	if hint != "" {
+		hintPrefix := "CLUE: "
+		hintWidth := innerW - runeLen(hintPrefix)
+		if hintWidth <= 0 {
+			return c.Render()
+		}
+
 		displayHint := hint
 		frame := t.tick % 30
 		if frame < 20 {
 			// Slot machine effect - random characters cycling
 			runes := []rune(hint)
-			displayHint = ""
+			morphed := make([]rune, 0, len(runes))
 			for i := range runes {
 				if (frame/3+i)%3 == 0 {
-					displayHint += string(rune('A' + rand.Intn(26)))
+					morphed = append(morphed, rune('A'+rand.Intn(26)))
 				} else {
-					displayHint += string(runes[i])
+					morphed = append(morphed, runes[i])
 				}
 			}
-			if frame < 10 {
-				// Still cycling - show more random
-				for i := len(hint); i < 15; i++ {
-					displayHint += string(rune('A' + rand.Intn(10)))
-				}
-			}
+			displayHint = string(morphed)
 		}
-		c.SetString(boxX+2, boxY+9, "CLUE: "+displayHint, green)
+
+		if runeLen(displayHint) > hintWidth {
+			maxOffset := runeLen(displayHint) - hintWidth
+			offset := 0
+			if maxOffset > 0 {
+				offset = (t.tick / 4) % (maxOffset + 1)
+			}
+			displayHint = sliceRunes(displayHint, offset, hintWidth)
+		} else {
+			displayHint = truncateToWidth(displayHint, hintWidth)
+		}
+
+		hintY := boxY + boxH - 2
+		if row+1 < hintY {
+			hintY = row + 1
+		}
+		if hintY < boxY+boxH-1 {
+			c.SetString(boxX+2, hintY, hintPrefix+displayHint, green)
+		}
 	}
 
 	return c.Render()
@@ -317,6 +389,7 @@ func (t *CryptoTheme) View(width, height int, q *game.Question, inputView string
 
 	// Overlay Box - expanded for hint
 	boxW := min(70, width-4)
+	innerW := boxW - 4
 	boxH := 12
 	boxX := (width - boxW) / 2
 	boxY := (height - boxH) / 2
@@ -331,13 +404,20 @@ func (t *CryptoTheme) View(width, height int, q *game.Question, inputView string
 	c.SetString(boxX+2, boxY+1, fmt.Sprintf("MINING BLOCK #%d", time.Now().Unix()/600), gold)
 	c.SetString(boxX+2, boxY+2, fmt.Sprintf("HASHRATE: %d MH/s", t.hashRate), gold)
 
-	c.SetString(boxX+2, boxY+5, "CHALLENGE: "+q.Text, green)
-	c.SetString(boxX+2, boxY+7, "NONCE: "+inputView, green)
+	challengeLines := clampLines(wrapLabeled("CHALLENGE: ", q.Text, innerW), 2, innerW)
+	for i, line := range challengeLines {
+		c.SetString(boxX+2, boxY+5+i, line, green)
+	}
+
+	nonceLines := clampLines(wrapLabeled("NONCE: ", inputView, innerW), 1, innerW)
+	if len(nonceLines) > 0 {
+		c.SetString(boxX+2, boxY+7, nonceLines[0], green)
+	}
 
 	// Hint: static when it fits, slow marquee only on overflow
 	if hint != "" {
 		hintPrefix := "CLUE: "
-		innerWidth := boxW - 4
+		innerWidth := innerW
 		availableHintRunes := innerWidth - len([]rune(hintPrefix))
 		if availableHintRunes > 0 {
 			displayHint := hint

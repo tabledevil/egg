@@ -20,8 +20,8 @@ type C64Theme struct {
 	cursorFlash bool
 }
 
-func NewC64Theme() Theme { return &C64Theme{} }
-func (t *C64Theme) Name() string { return "Commodore 64" }
+func NewC64Theme() Theme                { return &C64Theme{} }
+func (t *C64Theme) Name() string        { return "Commodore 64" }
 func (t *C64Theme) Description() string { return "64K RAM SYSTEM 38911 BASIC BYTES FREE" }
 
 func (t *C64Theme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -51,6 +51,7 @@ func (t *C64Theme) View(width, height int, q *game.Question, inputView string, h
 	viewportH := height - 4
 	viewportX := 2
 	viewportY := 2
+	innerW := viewportW - 2
 
 	c.Fill(viewportX, viewportY, viewportW, viewportH, ' ', blue) // Clear center
 
@@ -61,20 +62,41 @@ func (t *C64Theme) View(width, height int, q *game.Question, inputView string, h
 
 	// Content
 	c.SetString(viewportX+1, viewportY+5, "READY.", blue)
-	c.SetString(viewportX+1, viewportY+6, "LOAD \""+strings.ToUpper(q.Text)+"\",8,1", blue)
-	c.SetString(viewportX+1, viewportY+7, "SEARCHING FOR "+strings.ToUpper(q.Text), blue)
-	c.SetString(viewportX+1, viewportY+8, "LOADING", blue)
-	c.SetString(viewportX+1, viewportY+9, "READY.", blue)
+
+	row := viewportY + 6
+	loadLines := clampLines(wrapText("LOAD \""+strings.ToUpper(q.Text)+"\",8,1", innerW), 2, innerW)
+	for _, line := range loadLines {
+		c.SetString(viewportX+1, row, line, blue)
+		row++
+	}
+
+	searchLines := clampLines(wrapText("SEARCHING FOR "+strings.ToUpper(q.Text), innerW), 2, innerW)
+	for _, line := range searchLines {
+		c.SetString(viewportX+1, row, line, blue)
+		row++
+	}
+
+	c.SetString(viewportX+1, row, "LOADING", blue)
+	row++
+	c.SetString(viewportX+1, row, "READY.", blue)
 
 	// Input
 	cursor := " "
 	if t.cursorFlash {
 		cursor = "█"
 	}
-	c.SetString(viewportX+1, viewportY+11, "> "+inputView+cursor, blue)
+	inputLines := clampLines(wrapLabeled("> ", inputView+cursor, innerW), 2, innerW)
+	inputY := viewportY + viewportH - 5
+	for i, line := range inputLines {
+		c.SetString(viewportX+1, inputY+i, line, blue)
+	}
 
 	if hint != "" {
-		c.SetString(viewportX+1, viewportY+13, "SYNTAX ERROR: "+strings.ToUpper(hint), blue)
+		hintLines := clampLines(wrapLabeled("SYNTAX ERROR: ", strings.ToUpper(hint), innerW), 2, innerW)
+		hintY := viewportY + viewportH - 3
+		for i, line := range hintLines {
+			c.SetString(viewportX+1, hintY+i, line, blue)
+		}
 	}
 
 	return c.Render()
@@ -86,8 +108,8 @@ type DOSTheme struct {
 	BaseTheme
 }
 
-func NewDOSTheme() Theme { return &DOSTheme{} }
-func (t *DOSTheme) Name() string { return "MS-DOS" }
+func NewDOSTheme() Theme                { return &DOSTheme{} }
+func (t *DOSTheme) Name() string        { return "MS-DOS" }
 func (t *DOSTheme) Description() string { return "C:\\>" }
 
 func (t *DOSTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
@@ -103,6 +125,7 @@ func (t *DOSTheme) View(width, height int, q *game.Question, inputView string, h
 	winH := min(18, height-2)
 	winX := (width - winW) / 2
 	winY := (height - winH) / 2
+	innerW := winW - 4
 
 	c.Fill(winX, winY, winW, winH, ' ', bg)
 	c.DrawBox(winX, winY, winW, winH, bg)
@@ -117,18 +140,29 @@ func (t *DOSTheme) View(width, height int, q *game.Question, inputView string, h
 
 	// Content
 	c.SetString(winX+2, winY+2, "Question Item:", bg)
-	c.SetString(winX+2, winY+3, q.Text, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF55")).Background(lipgloss.Color("#0000AA")))
+	qLines := clampLines(wrapText(q.Text, innerW), 2, innerW)
+	for i, line := range qLines {
+		c.SetString(winX+2, winY+3+i, line, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF55")).Background(lipgloss.Color("#0000AA")))
+	}
 
 	// Input Field
 	c.SetString(winX+2, winY+6, "Enter Value:", bg)
-	c.SetString(winX+15, winY+6, "["+inputView+"_]", hl)
+	inputFieldW := winW - 18
+	if inputFieldW < 4 {
+		inputFieldW = 4
+	}
+	inputValue := truncateWithEllipsis(inputView, inputFieldW-3)
+	c.SetString(winX+15, winY+6, "["+inputValue+"_]", hl)
 
 	// Bottom Bar
 	bottom := "F1: Help  F10: Save & Exit  Esc: Exit"
 	c.SetString(0, height-1, bottom+strings.Repeat(" ", width-len(bottom)), hl)
 
 	if hint != "" {
-		c.SetString(winX+2, winY+10, "Hint: "+hint, bg)
+		hintLines := clampLines(wrapLabeled("Hint: ", hint, innerW), 3, innerW)
+		for i, line := range hintLines {
+			c.SetString(winX+2, winY+10+i, line, bg)
+		}
 	}
 
 	return c.Render()
@@ -140,8 +174,8 @@ type AmigaTheme struct {
 	BaseTheme
 }
 
-func NewAmigaTheme() Theme { return &AmigaTheme{} }
-func (t *AmigaTheme) Name() string { return "Amiga Workbench" }
+func NewAmigaTheme() Theme                { return &AmigaTheme{} }
+func (t *AmigaTheme) Name() string        { return "Amiga Workbench" }
 func (t *AmigaTheme) Description() string { return "Guru Meditation" }
 
 func (t *AmigaTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
@@ -158,8 +192,80 @@ func (t *AmigaTheme) View(width, height int, q *game.Question, inputView string,
 	c.SetString(2, 0, "Workbench 1.3  2563456 graphics mem  0 other mem", lipgloss.NewStyle().Background(lipgloss.Color("#FFFFFF")).Foreground(lipgloss.Color("#0055AA")))
 
 	// Window
-	winW := min(50, width-10)
-	winH := min(12, height-6)
+	winW := min(56, width-8)
+	innerW := winW - 2
+
+	questionLines := wrapLabeled("1.System:> ", q.Text, innerW)
+	inputLines := wrapLabeled("Answer:> ", inputView+"█", innerW)
+	var hintLines []string
+	if hint != "" {
+		hintLines = wrapLabeled("Hint: ", hint, innerW)
+	}
+
+	baseH := 12
+	if hint != "" {
+		baseH = 14
+	}
+	extraH := 0
+	if len(questionLines) > 1 {
+		extraH += min(len(questionLines)-1, 3)
+	}
+	if len(inputLines) > 1 {
+		extraH += min(len(inputLines)-1, 1)
+	}
+	if len(hintLines) > 1 {
+		extraH += min(len(hintLines)-1, 2)
+	}
+
+	maxWinH := height - 3
+	if maxWinH < 8 {
+		maxWinH = 8
+	}
+
+	winH := baseH + extraH
+	if winH > maxWinH {
+		winH = maxWinH
+	}
+	if winH < 8 {
+		winH = 8
+	}
+
+	contentRows := winH - 3
+	if contentRows < 3 {
+		contentRows = 3
+	}
+
+	reservedForInput := 1
+	if hint != "" {
+		reservedForInput++
+	}
+	questionMax := contentRows - reservedForInput
+	if questionMax < 1 {
+		questionMax = 1
+	}
+	questionLines = clampLines(questionLines, questionMax, innerW)
+
+	remaining := contentRows - len(questionLines)
+	if remaining < 1 {
+		remaining = 1
+	}
+	inputMax := remaining
+	if hint != "" && inputMax > 1 {
+		inputMax--
+	}
+	if inputMax < 1 {
+		inputMax = 1
+	}
+	inputLines = clampLines(inputLines, inputMax, innerW)
+
+	if hint != "" {
+		hintRemaining := contentRows - len(questionLines) - len(inputLines)
+		if hintRemaining < 1 {
+			hintRemaining = 1
+		}
+		hintLines = clampLines(hintLines, hintRemaining, innerW)
+	}
+
 	winX := 5
 	winY := 4
 
@@ -175,11 +281,36 @@ func (t *AmigaTheme) View(width, height int, q *game.Question, inputView string,
 	c.SetChar(winX, winY, '◻', wbBlue) // Close gadget
 
 	// Content
-	c.SetString(winX+1, winY+2, "1.System:> "+q.Text, winGrey)
-	c.SetString(winX+1, winY+4, "Answer:> "+inputView+"█", winGrey)
+	row := winY + 2
+	for _, line := range questionLines {
+		if row >= winY+winH-1 {
+			break
+		}
+		c.SetString(winX+1, row, line, winGrey)
+		row++
+	}
 
-	if hint != "" {
-		c.SetString(winX+1, winY+6, "Hint: "+hint, winGrey.Inherit(orange))
+	if row < winY+winH-1 {
+		row++
+	}
+
+	for _, line := range inputLines {
+		if row >= winY+winH-1 {
+			break
+		}
+		c.SetString(winX+1, row, line, winGrey)
+		row++
+	}
+
+	if hint != "" && row < winY+winH-1 {
+		row++
+		for _, line := range hintLines {
+			if row >= winY+winH-1 {
+				break
+			}
+			c.SetString(winX+1, row, line, winGrey.Inherit(orange))
+			row++
+		}
 	}
 
 	// Gadgets
@@ -195,8 +326,8 @@ type VHSTheme struct {
 	frameCount int
 }
 
-func NewVHSTheme() Theme { return &VHSTheme{} }
-func (t *VHSTheme) Name() string { return "VHS / Analog Horror" }
+func NewVHSTheme() Theme                { return &VHSTheme{} }
+func (t *VHSTheme) Name() string        { return "VHS / Analog Horror" }
 func (t *VHSTheme) Description() string { return "Tracking Error" }
 
 func (t *VHSTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -253,8 +384,8 @@ type SovietTheme struct {
 	BaseTheme
 }
 
-func NewSovietTheme() Theme { return &SovietTheme{} }
-func (t *SovietTheme) Name() string { return "Soviet Terminal" }
+func NewSovietTheme() Theme                { return &SovietTheme{} }
+func (t *SovietTheme) Name() string        { return "Soviet Terminal" }
 func (t *SovietTheme) Description() string { return "Top Secret / GRU" }
 
 func (t *SovietTheme) View(width, height int, q *game.Question, inputView string, hint string) string {

@@ -4,7 +4,6 @@ import (
 	"ctf-tool/pkg/game"
 	"ctf-tool/pkg/ui/canvas"
 	"math"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -48,18 +47,28 @@ func (t *GameboyTheme) View(width, height int, q *game.Question, inputView strin
 	// Pokemon-style text box
 	boxH := 6
 	c.DrawBox(vpX, vpY+vpH-boxH, vpW, boxH, darkest)
+	dialogW := vpW - 4
 
 	// Content
 	c.SetString(vpX+2, vpY+2, "Trainer wants to battle!", darkest)
-	c.SetString(vpX+2, vpY+4, "Q: "+q.Text, darkest)
+	questionLines := clampLines(wrapLabeled("Q: ", q.Text, dialogW), 3, dialogW)
+	for i, line := range questionLines {
+		c.SetString(vpX+2, vpY+4+i, line, darkest)
+	}
 
-	c.SetString(vpX+2, vpY+vpH-boxH+2, "> "+inputView, darkest)
+	inputLines := clampLines(wrapLabeled("> ", inputView, dialogW), 1, dialogW)
+	if len(inputLines) > 0 {
+		c.SetString(vpX+2, vpY+vpH-boxH+2, inputLines[0], darkest)
+	}
 
 	// Sprite placeholder
 	c.SetString(vpX+vpW-5, vpY+vpH-boxH-1, "🐭", darkest) // Mouse/Pikachu
 
 	if hint != "" {
-		c.SetString(vpX+2, vpY+vpH-boxH+4, hint, dark)
+		hintLines := clampLines(wrapLabeled("HINT: ", hint, dialogW), 1, dialogW)
+		if len(hintLines) > 0 {
+			c.SetString(vpX+2, vpY+vpH-boxH+4, hintLines[0], dark)
+		}
 	}
 
 	return c.Render()
@@ -97,6 +106,7 @@ func (t *NESTheme) View(width, height int, q *game.Question, inputView string, h
 	boxH := 10
 	boxX := (width - boxW) / 2
 	boxY := height - boxH - 2
+	innerW := boxW - 4
 
 	// Black background for box
 	c.Fill(boxX, boxY, boxW, boxH, ' ', white)
@@ -106,11 +116,34 @@ func (t *NESTheme) View(width, height int, q *game.Question, inputView string, h
 
 	// Text
 	c.SetString(boxX+2, boxY+2, "OLD MAN:", white)
-	c.SetString(boxX+2, boxY+4, q.Text, white)
-	c.SetString(boxX+4, boxY+6, "▶ "+inputView, white)
+	questionLines := clampLines(wrapText(q.Text, innerW), 3, innerW)
+	row := boxY + 4
+	for _, line := range questionLines {
+		if row >= boxY+boxH-2 {
+			break
+		}
+		c.SetString(boxX+2, row, line, white)
+		row++
+	}
+
+	if row < boxY+boxH-2 {
+		row++
+	}
+	inputLines := clampLines(wrapLabeled("▶ ", inputView, innerW), 1, innerW)
+	if len(inputLines) > 0 && row < boxY+boxH-1 {
+		c.SetString(boxX+2, row, inputLines[0], white)
+		row++
+	}
 
 	if hint != "" {
-		c.SetString(boxX+2, boxY+8, "HINT: "+hint, white)
+		hintLines := clampLines(wrapLabeled("HINT: ", hint, innerW), 2, innerW)
+		for _, line := range hintLines {
+			if row >= boxY+boxH-1 {
+				break
+			}
+			c.SetString(boxX+2, row, line, white)
+			row++
+		}
 	}
 
 	return c.Render()
@@ -167,32 +200,40 @@ func (t *SNESTheme) View(width, height int, q *game.Question, inputView string, 
 	}
 
 	// Floating Text Box - expanded to fit hint
-	boxW := 40
-	boxX := (width - boxW) / 2
+	textW := min(40, width-4)
+	boxX := (width - textW) / 2
 	boxY := height / 2
 
 	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF00")).Bold(true)
-	c.SetString(boxX, boxY, q.Text, style)
-	c.SetString(boxX, boxY+2, "> "+inputView, style)
+	questionLines := clampLines(wrapText(q.Text, textW), 2, textW)
+	for i, line := range questionLines {
+		c.SetString(boxX, boxY+i, line, style)
+	}
+
+	inputY := boxY + len(questionLines) + 1
+	inputLines := clampLines(wrapLabeled("> ", inputView, textW), 1, textW)
+	if len(inputLines) > 0 {
+		c.SetString(boxX, inputY, inputLines[0], style)
+	}
 
 	// Hint with bounce animation
 	if hint != "" {
-		bounceWidth := boxW - 10
-		frame := int(t.rotation*40) % (len(hint) + bounceWidth + 4)
+		hintPrefix := "HINT: "
+		hintWidth := textW - runeLen(hintPrefix)
+		if hintWidth <= 0 {
+			return c.Render()
+		}
+
 		displayHint := hint
-		if frame < len(hint) {
-			// Show portion of hint with leading spaces
-			displayHint = strings.Repeat(" ", frame) + hint
-			if len(displayHint) > bounceWidth {
-				displayHint = displayHint[:bounceWidth]
-			}
-		} else if frame < len(hint)+bounceWidth {
-			// Full hint scrolling
-			spaces := frame - len(hint)
-			displayHint = hint + strings.Repeat(" ", spaces)
+		if runeLen(hint) > hintWidth {
+			maxOffset := runeLen(hint) - hintWidth
+			offset := (int(t.rotation*28) / 2) % (maxOffset + 1)
+			displayHint = sliceRunes(hint, offset, hintWidth)
+		} else {
+			displayHint = truncateToWidth(hint, hintWidth)
 		}
 		hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF00"))
-		c.SetString(boxX+2, boxY+4, "HINT: "+displayHint, hintStyle)
+		c.SetString(boxX, inputY+2, hintPrefix+displayHint, hintStyle)
 	}
 
 	return c.Render()

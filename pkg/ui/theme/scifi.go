@@ -117,28 +117,27 @@ func (t *MatrixTheme) View(width, height int, q *game.Question, inputView string
 	}
 
 	// Draw Text
-	content := fmt.Sprintf("WAKE UP NEO...\n\n%s\n\n> %s", q.Text, inputView)
+	textWidth := boxWidth - 4
+	var lines []string
+	lines = append(lines, "WAKE UP NEO...", "")
+	lines = append(lines, wrapText(q.Text, textWidth)...)
+	lines = append(lines, "")
+	lines = append(lines, wrapLabeled("> ", inputView, textWidth)...)
 	if hint != "" {
-		content += "\n\nHINT: " + hint
+		lines = append(lines, "")
+		lines = append(lines, wrapLabeled("HINT: ", hint, textWidth)...)
 	}
+	lines = clampLines(lines, boxHeight-4, textWidth)
 
-	// Use lipgloss to render text block then place onto canvas
-	// Actually, simpler to just write string to canvas for now to keep it aligned
-	lines := strings.Split(content, "\n")
 	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Background(lipgloss.Color("#001100")).Bold(true)
 
 	currentY := boxY + 2
 	for _, line := range lines {
-		// Word wrap (simple)
-		if len(line) > boxWidth-4 {
-			// Very basic wrapping
-			c.SetString(boxX+2, currentY, line[:boxWidth-4], textStyle)
-			c.SetString(boxX+2, currentY+1, line[boxWidth-4:], textStyle)
-			currentY += 2
-		} else {
-			c.SetString(boxX+2, currentY, line, textStyle)
-			currentY++
+		if currentY >= boxY+boxHeight-1 {
+			break
 		}
+		c.SetString(boxX+2, currentY, line, textStyle)
+		currentY++
 	}
 
 	// Draw Border
@@ -341,17 +340,52 @@ func (t *AlienTheme) View(width, height int, q *game.Question, inputView string,
 	c.SetChar(width-3, height-3, '▟', amber)
 
 	// Content
+	innerW := width - 10
+	if innerW < 12 {
+		innerW = 12
+	}
+
 	c.SetString(5, 6, "PRIORITY ONE:", amber)
-	c.SetString(5, 8, "QUERY: "+strings.ToUpper(q.Text), amber)
+
+	row := 8
+	queryLines := clampLines(wrapLabeled("QUERY: ", strings.ToUpper(q.Text), innerW), 2, innerW)
+	for _, line := range queryLines {
+		if row >= height-3 {
+			break
+		}
+		c.SetString(5, row, line, amber)
+		row++
+	}
 
 	cursor := " "
 	if t.cursorBlink {
 		cursor = "█"
 	}
-	c.SetString(5, 12, "INPUT: "+inputView+cursor, amber)
+
+	if row < height-3 {
+		row++
+	}
+	inputLines := clampLines(wrapLabeled("INPUT: ", inputView+cursor, innerW), 2, innerW)
+	for _, line := range inputLines {
+		if row >= height-3 {
+			break
+		}
+		c.SetString(5, row, line, amber)
+		row++
+	}
 
 	if hint != "" {
-		c.SetString(5, 15, "ANALYSIS: "+strings.ToUpper(hint), dim)
+		if row < height-3 {
+			row++
+		}
+		hintLines := clampLines(wrapLabeled("ANALYSIS: ", strings.ToUpper(hint), innerW), 2, innerW)
+		for _, line := range hintLines {
+			if row >= height-3 {
+				break
+			}
+			c.SetString(5, row, line, dim)
+			row++
+		}
 	}
 
 	return c.Render()

@@ -59,22 +59,58 @@ func (t *BBSTheme) View(width, height int, q *game.Question, inputView string, h
 	boxY := y + 2
 	boxH := height - boxY - 4
 	c.DrawBox(5, boxY, width-10, boxH, magenta)
+	innerW := width - 14
+	if innerW < 10 {
+		innerW = 10
+	}
 
 	c.SetString(7, boxY+2, "Message from SysOp:", white)
-	c.SetString(7, boxY+4, q.Text, white)
 
-	c.SetString(7, boxY+7, "Response: "+inputView, cyan)
+	row := boxY + 4
+	questionLines := clampLines(wrapText(q.Text, innerW), 3, innerW)
+	for _, line := range questionLines {
+		if row >= boxY+boxH-1 {
+			break
+		}
+		c.SetString(7, row, line, white)
+		row++
+	}
+
+	if row < boxY+boxH-1 {
+		row++
+	}
+
+	responseLines := clampLines(wrapLabeled("Response: ", inputView, innerW), 2, innerW)
+	for _, line := range responseLines {
+		if row >= boxY+boxH-1 {
+			break
+		}
+		c.SetString(7, row, line, cyan)
+		row++
+	}
 
 	// Hint with marquee scrolling (modem-style)
 	if hint != "" {
-		frame := t.frame % (len(hint) + 40)
-		displayHint := hint
-		if frame < len(hint) {
-			displayHint = hint[frame:]
-		} else {
-			displayHint = hint + strings.Repeat(" ", frame-len(hint))
+		hintPrefix := "HINT: "
+		hintWidth := innerW - runeLen(hintPrefix)
+		if hintWidth > 0 {
+			displayHint := hint
+			if runeLen(hint) > hintWidth {
+				maxOffset := runeLen(hint) - hintWidth
+				offset := (t.frame / 3) % (maxOffset + 1)
+				displayHint = sliceRunes(hint, offset, hintWidth)
+			} else {
+				displayHint = truncateToWidth(hint, hintWidth)
+			}
+
+			hintY := row + 1
+			if hintY >= boxY+boxH-1 {
+				hintY = row
+			}
+			if hintY < boxY+boxH-1 {
+				c.SetString(7, hintY, hintPrefix+displayHint, white)
+			}
 		}
-		c.SetString(7, boxY+9, "HINT: "+displayHint, white)
 	}
 
 	c.SetString(width-20, height-2, "NO CARRIER", lipgloss.NewStyle().Foreground(lipgloss.Color("1")))
