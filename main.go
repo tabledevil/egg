@@ -3,6 +3,7 @@ package main
 import (
 	"ctf-tool/pkg/game"
 	"ctf-tool/pkg/ui"
+	"ctf-tool/pkg/ui/boot"
 	"ctf-tool/pkg/ui/caps"
 	"ctf-tool/pkg/ui/theme"
 	"ctf-tool/pkg/ui/transition"
@@ -14,12 +15,34 @@ import (
 
 func main() {
 	showcase := flag.Bool("showcase", false, "run UI showcase mode (cycles themes/transitions with placeholder text)")
-	list := flag.Bool("list", false, "list supported themes and transitions for the current terminal and exit")
+	list := flag.Bool("list", false, "list supported boot profiles, themes, and transitions for this terminal")
 	flag.Parse()
 
 	if *list {
 		c := caps.Detect()
 		fmt.Println(c.String())
+		fmt.Println()
+
+		fmt.Println("Boot profiles:")
+		bootSupported := 0
+		for _, constructor := range boot.Registry {
+			b := constructor()
+			supported := true
+			if aware, ok := b.(boot.CapabilityAware); ok && !aware.IsCompatible(c) {
+				supported = false
+			}
+			status := "supported"
+			if !supported {
+				status = "unsupported"
+			}
+			fmt.Printf("- %s: %s [%s]\n", b.Name(), b.Description(), status)
+			if supported {
+				bootSupported++
+			}
+		}
+		if bootSupported == 0 {
+			fmt.Println("- (none; classic startup intro will be used)")
+		}
 		fmt.Println()
 
 		fmt.Println("Supported themes:")

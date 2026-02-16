@@ -2,6 +2,7 @@ package ui
 
 import (
 	"ctf-tool/pkg/game"
+	"ctf-tool/pkg/ui/boot"
 	"ctf-tool/pkg/ui/caps"
 	"ctf-tool/pkg/ui/theme"
 	"ctf-tool/pkg/ui/transition"
@@ -38,8 +39,10 @@ type Model struct {
 	// Game State
 	CurrentQuestionIndex int
 	WrongAnswers         int
+	ActiveBoot           boot.Intro
 	ActiveTheme          theme.Theme
 	ActiveTransition     transition.Transition
+	BootStatus           string
 
 	// Animation State
 	TypewriterIndex int
@@ -77,6 +80,7 @@ func NewModel(config *game.Config) Model {
 		Caps:   caps.Detect(),
 		Input:  ti,
 	}
+	m.PickRandomBootIntro()
 	m.PickRandomTheme()
 	return m
 }
@@ -85,6 +89,8 @@ func (m *Model) EnableShowcase() {
 	m.Showcase = true
 	m.AutoDemo = true
 	m.ShowHint = true
+	m.ActiveBoot = nil
+	m.BootStatus = ""
 
 	// Prefer a stable first question.
 	if len(m.Config.Questions) > 0 {
@@ -97,6 +103,35 @@ func (m *Model) EnableShowcase() {
 
 	// Provide a visible placeholder input so input fields can be evaluated too.
 	m.Input.SetValue("hunter2")
+}
+
+func (m *Model) PickRandomBootIntro() tea.Cmd {
+	if len(boot.Registry) == 0 {
+		m.ActiveBoot = nil
+		m.BootStatus = "No cinematic boot profiles are registered."
+		return nil
+	}
+
+	var candidates []boot.Intro
+	for _, constructor := range boot.Registry {
+		intro := constructor()
+		if aware, ok := intro.(boot.CapabilityAware); ok {
+			if !aware.IsCompatible(m.Caps) {
+				continue
+			}
+		}
+		candidates = append(candidates, intro)
+	}
+
+	if len(candidates) == 0 {
+		m.ActiveBoot = nil
+		m.BootStatus = "Cinematic boot check: unsupported terminal profile, using classic startup."
+		return nil
+	}
+
+	m.ActiveBoot = candidates[rand.Intn(len(candidates))]
+	m.BootStatus = fmt.Sprintf("Cinematic boot check: OK - profile \"%s\"", m.ActiveBoot.Name())
+	return nil
 }
 
 func (m *Model) PickRandomTheme() tea.Cmd {
@@ -155,6 +190,47 @@ func (m *Model) PickNextTheme() tea.Cmd {
 	return nil
 }
 
+func (m *Model) nextCompatibleTransition() transition.Transition {
+	if len(transition.Registry) == 0 {
+		return nil
+	}
+
+	for i := 0; i < len(transition.Registry); i++ {
+		idx := (m.showcaseTransitionCursor + i) % len(transition.Registry)
+		candidate := transition.Registry[idx]()
+		if aware, ok := candidate.(transition.CapabilityAware); ok && !aware.IsCompatible(m.Caps) {
+			continue
+		}
+		m.showcaseTransitionCursor = (idx + 1) % len(transition.Registry)
+		return candidate
+	}
+
+	idx := m.showcaseTransitionCursor % len(transition.Registry)
+	m.showcaseTransitionCursor = (idx + 1) % len(transition.Registry)
+	return transition.Registry[idx]()
+}
+
+func (m *Model) randomCompatibleTransition() transition.Transition {
+	if len(transition.Registry) == 0 {
+		return nil
+	}
+
+	var constructors []transition.Constructor
+	for _, constructor := range transition.Registry {
+		candidate := constructor()
+		if aware, ok := candidate.(transition.CapabilityAware); ok && !aware.IsCompatible(m.Caps) {
+			continue
+		}
+		constructors = append(constructors, constructor)
+	}
+
+	if len(constructors) == 0 {
+		return transition.Registry[rand.Intn(len(transition.Registry))]()
+	}
+
+	return constructors[rand.Intn(len(constructors))]()
+}
+
 func (m *Model) StartShowcaseTransition() tea.Cmd {
 	if len(m.Config.Questions) == 0 {
 		return nil
@@ -179,9 +255,11 @@ func (m *Model) StartShowcaseTransition() tea.Cmd {
 	// 4. Create next transition (sequential).
 	m.State = StateTransition
 	if len(transition.Registry) > 0 {
-		idx := m.showcaseTransitionCursor % len(transition.Registry)
-		m.showcaseTransitionCursor = (m.showcaseTransitionCursor + 1) % len(transition.Registry)
-		m.ActiveTransition = transition.Registry[idx]()
+		m.ActiveTransition = m.nextCompatibleTransition()
+		if m.ActiveTransition == nil {
+			m.State = StateQuestion
+			return nil
+		}
 		m.ActiveTransition.SetContent(oldView, newView)
 		return m.ActiveTransition.Init()
 	}
@@ -233,8 +311,11 @@ func (m *Model) StartTransition() tea.Cmd {
 	// 5. Create Transition
 	m.State = StateTransition
 	if len(transition.Registry) > 0 {
-		constructor := transition.Registry[rand.Intn(len(transition.Registry))]
-		m.ActiveTransition = constructor()
+		m.ActiveTransition = m.randomCompatibleTransition()
+		if m.ActiveTransition == nil {
+			m.State = StateQuestion
+			return nil
+		}
 		m.ActiveTransition.SetContent(oldView, newView)
 		return m.ActiveTransition.Init()
 	}
@@ -246,6 +327,9 @@ func (m *Model) StartTransition() tea.Cmd {
 func (m Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, textinput.Blink, tick())
+	if m.ActiveBoot != nil {
+		cmds = append(cmds, m.ActiveBoot.Init())
+	}
 	return tea.Batch(cmds...)
 }
 
@@ -305,8 +389,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// State Machine
 	switch m.State {
 	case StateIntro:
+		if m.ActiveBoot != nil {
+			var bCmd tea.Cmd
+			nextBoot, bCmd := m.ActiveBoot.Update(msg)
+			if nextBoot != nil {
+				m.ActiveBoot = nextBoot
+			}
+			cmds = append(cmds, bCmd)
+		}
+
 		if _, ok := msg.(game.TickMsg); ok {
-			cmds = append(cmds, tick())
+			if m.ActiveBoot == nil {
+				cmds = append(cmds, tick())
+			}
 		}
 		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeyEnter {
 			m.State = StateQuestion
@@ -380,6 +475,23 @@ func (m Model) View() string {
 
 	switch m.State {
 	case StateIntro:
+		if m.ActiveBoot != nil {
+			if bootView := m.safeBootView(); bootView != "" {
+				statusStyle := lipgloss.NewStyle().
+					Width(m.Width).
+					Align(lipgloss.Center).
+					Foreground(lipgloss.Color("#8DF7D9"))
+
+				action := "[PRESS ENTER TO SKIP BOOT]"
+				if m.ActiveBoot.Done() {
+					action = "[PRESS ENTER TO CONTINUE]"
+				}
+
+				footer := statusStyle.Render(fmt.Sprintf("%s\n%s", m.BootStatus, action))
+				return lipgloss.JoinVertical(lipgloss.Left, bootView, footer)
+			}
+		}
+
 		style := lipgloss.NewStyle().
 			Width(m.Width).
 			Height(m.Height).
@@ -387,7 +499,11 @@ func (m Model) View() string {
 			Bold(true).
 			Foreground(lipgloss.Color("#00FF00"))
 
-		return style.Render("SYSTEM BOOT SEQUENCE INITIATED...\n\n[PRESS ENTER TO HACK THE PLANET]")
+		classic := "SYSTEM BOOT SEQUENCE INITIATED...\n\n[PRESS ENTER TO HACK THE PLANET]"
+		if m.BootStatus != "" {
+			classic += "\n\n" + m.BootStatus
+		}
+		return style.Render(classic)
 
 	case StateTransition:
 		if m.ActiveTransition != nil {
@@ -451,6 +567,25 @@ func (m *Model) safeThemeView(q *game.Question, inputView, hint string) (view st
 	}()
 
 	return m.ActiveTheme.View(m.Width, m.Height, q, inputView, hint)
+}
+
+func (m *Model) safeBootView() (view string) {
+	if m.ActiveBoot == nil || m.Width <= 0 || m.Height <= 0 {
+		return ""
+	}
+
+	height := m.Height - 2
+	if height < 3 {
+		height = m.Height
+	}
+
+	defer func() {
+		if recover() != nil {
+			view = ""
+		}
+	}()
+
+	return m.ActiveBoot.View(m.Width, height)
 }
 
 func (m *Model) safeTransitionView() (view string) {

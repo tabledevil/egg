@@ -2,11 +2,51 @@ package game
 
 import (
 	"strings"
+	"unicode"
 )
 
-// NormalizeString removes spaces and lowercases text
+// NormalizeString is the legacy answer normalization: lowercase + trim.
 func NormalizeString(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
+}
+
+// normalizeEnhanced removes separators/punctuation while keeping meaningful
+// alphanumeric symbols, so answers like "port-22" and "port 22" can match.
+func normalizeEnhanced(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case unicode.IsLetter(r), unicode.IsDigit(r):
+			b.WriteRune(r)
+		case r == '#', r == '+':
+			b.WriteRune(r)
+		}
+	}
+
+	return b.String()
+}
+
+func fuzzyMatch(input, correct string) bool {
+	if input == correct {
+		return true
+	}
+	if input == "" || correct == "" {
+		return false
+	}
+
+	dist := LevenshteinDistance(input, correct)
+	length := len([]rune(correct))
+
+	// Keep short answers strict to avoid accidental passes.
+	if length <= 3 {
+		return dist == 0
+	} else if length <= 6 {
+		return dist <= 1
+	}
+	return dist <= 2
 }
 
 // LevenshteinDistance calculates the Optimal String Alignment distance (restricted Damerau-Levenshtein)
@@ -65,22 +105,13 @@ func min(vals ...int) int {
 
 // CheckAnswer validates the user input against the correct answer with fuzzy matching
 func CheckAnswer(input, correct string) bool {
-	normInput := NormalizeString(input)
-	normCorrect := NormalizeString(correct)
-
-	if normInput == normCorrect {
+	legacyInput := NormalizeString(input)
+	legacyCorrect := NormalizeString(correct)
+	if fuzzyMatch(legacyInput, legacyCorrect) {
 		return true
 	}
 
-	dist := LevenshteinDistance(normInput, normCorrect)
-	length := len([]rune(normCorrect))
-
-	// Lenient rules
-	if length <= 3 {
-		return dist == 0 // Exact match only for short words
-	} else if length <= 6 {
-		return dist <= 1 // Allow 1 typo (including swap)
-	} else {
-		return dist <= 2 // Allow 2 typos for longer words
-	}
+	enhancedInput := normalizeEnhanced(input)
+	enhancedCorrect := normalizeEnhanced(correct)
+	return fuzzyMatch(enhancedInput, enhancedCorrect)
 }

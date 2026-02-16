@@ -13,6 +13,7 @@ func TestCheckAnswer(t *testing.T) {
 		{"  echo  ", "echo", true},
 		{"ecoh", "echo", true}, // 1 swap, length 4 -> allowed? length 4 > 3, allows 1 typo. Yes.
 		{"eco", "echo", true},  // 1 deletion, length 4 -> allowed.
+		{"ssh!", "ssh", true},
 		{"cat", "cat", true},
 		{"bat", "cat", false}, // length 3, must be exact
 		{"keyboard", "keyboard", true},
@@ -20,6 +21,11 @@ func TestCheckAnswer(t *testing.T) {
 		{"keybard", "keyboard", true},  // 1 deletion
 		{"koyboard", "keyboard", true}, // 1 sub
 		{"keyboar", "keyboard", true},  // 1 deletion
+		{"port-22", "port 22", true},
+		{"FLAG{alpha-beta}", "flag alpha beta", true},
+		{"deckseven", "deck seven", true},
+		{"c", "c#", false},
+		{"port77", "port22", false},
 		{"somethingreallylong", "somethingreallylong", true},
 		{"somethingrealllong", "somethingreallylong", true}, // 1 typo
 		{"somethngrealllong", "somethingreallylong", true},  // 2 typos
