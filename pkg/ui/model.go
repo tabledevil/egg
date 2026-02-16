@@ -208,11 +208,11 @@ func (m *Model) StartTransition() tea.Cmd {
 
 	// 2. Advance State
 	m.CurrentQuestionIndex++
-	// Wrap around for demo/endless feel, or success
+	// Check for game completion
 	if m.CurrentQuestionIndex >= len(m.Config.Questions) {
-		m.CurrentQuestionIndex = 0 // Loop for demo purposes
-		// m.State = StateSuccess
-		// return nil
+		m.State = StateSuccess
+		m.Input.Reset()
+		return nil
 	}
 
 	// 3. Pick New Theme
