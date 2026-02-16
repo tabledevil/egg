@@ -20,18 +20,24 @@ type C64Theme struct {
 	cursorFlash bool
 }
 
+func c64Tick() tea.Cmd {
+	return tea.Tick(time.Millisecond*180, func(t time.Time) tea.Msg {
+		return game.TickMsg(t)
+	})
+}
+
 func NewC64Theme() Theme                { return &C64Theme{} }
 func (t *C64Theme) Name() string        { return "Commodore 64" }
 func (t *C64Theme) Description() string { return "64K RAM SYSTEM 38911 BASIC BYTES FREE" }
 
+func (t *C64Theme) Init() tea.Cmd {
+	return c64Tick()
+}
+
 func (t *C64Theme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
-		if time.Now().UnixNano()/int64(time.Millisecond*500)%2 == 0 {
-			t.cursorFlash = true
-		} else {
-			t.cursorFlash = false
-		}
-		return t, Tick()
+		t.cursorFlash = !t.cursorFlash
+		return t, c64Tick()
 	}
 	return t, nil
 }
