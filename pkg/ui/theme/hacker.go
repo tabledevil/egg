@@ -21,8 +21,8 @@ type SneakersTheme struct {
 	tick       int
 }
 
-func NewSneakersTheme() Theme { return &SneakersTheme{} }
-func (t *SneakersTheme) Name() string { return "Sneakers" }
+func NewSneakersTheme() Theme                { return &SneakersTheme{} }
+func (t *SneakersTheme) Name() string        { return "Sneakers" }
 func (t *SneakersTheme) Description() string { return "SETEC ASTRONOMY" }
 
 func (t *SneakersTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -48,11 +48,15 @@ func (t *SneakersTheme) View(width, height int, q *game.Question, inputView stri
 		}
 	}
 
-	// Box
+	// Box - expanded to fit hint
 	boxW := min(60, width-4)
 	boxH := 10
 	boxX := (width - boxW) / 2
 	boxY := (height - boxH) / 2
+	if hint != "" {
+		boxH = 13
+		boxY = (height - boxH) / 2
+	}
 
 	c.Fill(boxX, boxY, boxW, boxH, ' ', lipgloss.NewStyle().Background(lipgloss.Color("#000000")))
 	c.DrawBox(boxX, boxY, boxW, boxH, green)
@@ -68,6 +72,31 @@ func (t *SneakersTheme) View(width, height int, q *game.Question, inputView stri
 
 	c.SetString(boxX+2, boxY+7, "> "+inputView, green)
 
+	// Hint with slot machine animation
+	if hint != "" {
+		displayHint := hint
+		frame := t.tick % 30
+		if frame < 20 {
+			// Slot machine effect - random characters cycling
+			runes := []rune(hint)
+			displayHint = ""
+			for i := range runes {
+				if (frame/3+i)%3 == 0 {
+					displayHint += string(rune('A' + rand.Intn(26)))
+				} else {
+					displayHint += string(runes[i])
+				}
+			}
+			if frame < 10 {
+				// Still cycling - show more random
+				for i := len(hint); i < 15; i++ {
+					displayHint += string(rune('A' + rand.Intn(10)))
+				}
+			}
+		}
+		c.SetString(boxX+2, boxY+9, "CLUE: "+displayHint, green)
+	}
+
 	return c.Render()
 }
 
@@ -78,8 +107,8 @@ type HackersTheme struct {
 	rotation float64
 }
 
-func NewHackersTheme() Theme { return &HackersTheme{} }
-func (t *HackersTheme) Name() string { return "Hackers (1995)" }
+func NewHackersTheme() Theme                { return &HackersTheme{} }
+func (t *HackersTheme) Name() string        { return "Hackers (1995)" }
 func (t *HackersTheme) Description() string { return "MESS WITH THE BEST, DIE LIKE THE REST" }
 
 func (t *HackersTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -119,6 +148,28 @@ func (t *HackersTheme) View(width, height int, q *game.Question, inputView strin
 	c.SetString(centerX-len(q.Text)/2, centerY, q.Text, bgStyle)
 	c.SetString(centerX-10, centerY+2, "> "+inputView, bgStyle)
 
+	// Hint with glitch effect
+	if hint != "" {
+		frame := int(t.rotation * 10)
+		displayHint := hint
+		// Glitch: randomly distort some characters
+		if frame%8 < 3 {
+			runes := []rune(hint)
+			for i := range runes {
+				if rand.Float64() < 0.3 {
+					runes[i] = rune("#%@"[rand.Intn(3)])
+				}
+			}
+			displayHint = string(runes)
+		}
+		// Offset hint position slightly for glitch effect
+		offsetX := 0
+		if frame%4 < 1 {
+			offsetX = rand.Intn(3) - 1
+		}
+		c.SetString(centerX-10+offsetX, centerY+4, "HINT: "+displayHint, bgStyle)
+	}
+
 	return c.Render()
 }
 
@@ -126,11 +177,20 @@ func (t *HackersTheme) View(width, height int, q *game.Question, inputView strin
 
 type MrRobotTheme struct {
 	BaseTheme
+	tick int
 }
 
-func NewMrRobotTheme() Theme { return &MrRobotTheme{} }
-func (t *MrRobotTheme) Name() string { return "fsociety" }
+func NewMrRobotTheme() Theme                { return &MrRobotTheme{} }
+func (t *MrRobotTheme) Name() string        { return "fsociety" }
 func (t *MrRobotTheme) Description() string { return "Hello friend." }
+
+func (t *MrRobotTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
+	if _, ok := msg.(game.TickMsg); ok {
+		t.tick++
+		return t, Tick()
+	}
+	return t, nil
+}
 
 func (t *MrRobotTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	c := canvas.New(width, height)
@@ -149,6 +209,18 @@ func (t *MrRobotTheme) View(width, height int, q *game.Question, inputView strin
 	c.SetString(0, 5, "Enter payload:", bg)
 	c.SetString(0, 6, "> "+inputView, bg)
 
+	// Hint with typewriter effect
+	if hint != "" {
+		// Reveal more characters as tick increases
+		revealLen := (t.tick / 3) % (len(hint) + 5)
+		if revealLen > len(hint) {
+			revealLen = len(hint)
+		}
+		if revealLen > 0 {
+			c.SetString(0, 8, "> Hint: "+hint[:revealLen], bg)
+		}
+	}
+
 	// Random "fsociety" hidden message
 	if rand.Float64() < 0.01 {
 		c.SetString(width-10, height-1, "fsociety", lipgloss.NewStyle().Foreground(lipgloss.Color("#330000")))
@@ -164,8 +236,8 @@ type WargamesTheme struct {
 	blink bool
 }
 
-func NewWargamesTheme() Theme { return &WargamesTheme{} }
-func (t *WargamesTheme) Name() string { return "WOPR" }
+func NewWargamesTheme() Theme                { return &WargamesTheme{} }
+func (t *WargamesTheme) Name() string        { return "WOPR" }
 func (t *WargamesTheme) Description() string { return "Shall we play a game?" }
 
 func (t *WargamesTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -194,8 +266,17 @@ func (t *WargamesTheme) View(width, height int, q *game.Question, inputView stri
 
 	c.SetString(10, 14, "ENTER MOVE:", cyan)
 	cursor := " "
-	if t.blink { cursor = "█" }
+	if t.blink {
+		cursor = "█"
+	}
 	c.SetString(22, 14, inputView+cursor, cyan)
+
+	// Hint with blink effect
+	if hint != "" {
+		if t.blink {
+			c.SetString(10, 16, "HINT: "+hint, cyan)
+		}
+	}
 
 	return c.Render()
 }
@@ -205,15 +286,17 @@ func (t *WargamesTheme) View(width, height int, q *game.Question, inputView stri
 type CryptoTheme struct {
 	BaseTheme
 	hashRate int
+	frame    int
 }
 
-func NewCryptoTheme() Theme { return &CryptoTheme{} }
-func (t *CryptoTheme) Name() string { return "Blockchain" }
+func NewCryptoTheme() Theme                { return &CryptoTheme{} }
+func (t *CryptoTheme) Name() string        { return "Blockchain" }
 func (t *CryptoTheme) Description() string { return "HODL" }
 
 func (t *CryptoTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.hashRate = rand.Intn(1000) + 9000
+		t.frame++
 		return t, Tick()
 	}
 	return t, nil
@@ -232,11 +315,15 @@ func (t *CryptoTheme) View(width, height int, q *game.Question, inputView string
 		c.SetString(0, y, hash+hash+hash, dim)
 	}
 
-	// Overlay Box
+	// Overlay Box - expanded for hint
 	boxW := min(70, width-4)
 	boxH := 12
 	boxX := (width - boxW) / 2
 	boxY := (height - boxH) / 2
+	if hint != "" {
+		boxH = 14
+		boxY = (height - boxH) / 2
+	}
 
 	c.Fill(boxX, boxY, boxW, boxH, ' ', lipgloss.NewStyle().Background(lipgloss.Color("#000000")))
 	c.DrawBox(boxX, boxY, boxW, boxH, gold)
@@ -246,6 +333,20 @@ func (t *CryptoTheme) View(width, height int, q *game.Question, inputView string
 
 	c.SetString(boxX+2, boxY+5, "CHALLENGE: "+q.Text, green)
 	c.SetString(boxX+2, boxY+7, "NONCE: "+inputView, green)
+
+	// Hint with marquee scrolling
+	if hint != "" {
+		frame := t.frame % (len(hint) + 30)
+		displayHint := hint
+		if frame < len(hint) {
+			// Show from position
+			displayHint = hint[frame:]
+		} else {
+			// Pad with spaces then show full hint
+			displayHint = hint + strings.Repeat(" ", frame-len(hint))
+		}
+		c.SetString(boxX+2, boxY+9, "CLUE: "+displayHint, green)
+	}
 
 	return c.Render()
 }

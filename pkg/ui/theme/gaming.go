@@ -4,6 +4,7 @@ import (
 	"ctf-tool/pkg/game"
 	"ctf-tool/pkg/ui/canvas"
 	"math"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -15,8 +16,8 @@ type GameboyTheme struct {
 	BaseTheme
 }
 
-func NewGameboyTheme() Theme { return &GameboyTheme{} }
-func (t *GameboyTheme) Name() string { return "Dot Matrix Game" }
+func NewGameboyTheme() Theme                { return &GameboyTheme{} }
+func (t *GameboyTheme) Name() string        { return "Dot Matrix Game" }
 func (t *GameboyTheme) Description() string { return "160x144 pixels of fun" }
 
 func (t *GameboyTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
@@ -70,8 +71,8 @@ type NESTheme struct {
 	BaseTheme
 }
 
-func NewNESTheme() Theme { return &NESTheme{} }
-func (t *NESTheme) Name() string { return "8-Bit RPG" }
+func NewNESTheme() Theme                { return &NESTheme{} }
+func (t *NESTheme) Name() string        { return "8-Bit RPG" }
 func (t *NESTheme) Description() string { return "It's dangerous to go alone" }
 
 func (t *NESTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
@@ -122,8 +123,8 @@ type SNESTheme struct {
 	rotation float64
 }
 
-func NewSNESTheme() Theme { return &SNESTheme{} }
-func (t *SNESTheme) Name() string { return "Super Mode 7" }
+func NewSNESTheme() Theme                { return &SNESTheme{} }
+func (t *SNESTheme) Name() string        { return "Super Mode 7" }
 func (t *SNESTheme) Description() string { return "F-Zero Style" }
 
 func (t *SNESTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
@@ -150,7 +151,7 @@ func (t *SNESTheme) View(width, height int, q *game.Question, inputView string, 
 
 		for x := 0; x < width; x++ {
 			// Rotate coordinates
-			worldX := float64(x - width/2) * scale
+			worldX := float64(x-width/2) * scale
 			worldY := 100.0 / scale // Move forward
 
 			rotX := worldX*math.Cos(t.rotation) - worldY*math.Sin(t.rotation)
@@ -165,7 +166,7 @@ func (t *SNESTheme) View(width, height int, q *game.Question, inputView string, 
 		}
 	}
 
-	// Floating Text Box
+	// Floating Text Box - expanded to fit hint
 	boxW := 40
 	boxX := (width - boxW) / 2
 	boxY := height / 2
@@ -173,6 +174,26 @@ func (t *SNESTheme) View(width, height int, q *game.Question, inputView string, 
 	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF00")).Bold(true)
 	c.SetString(boxX, boxY, q.Text, style)
 	c.SetString(boxX, boxY+2, "> "+inputView, style)
+
+	// Hint with bounce animation
+	if hint != "" {
+		bounceWidth := boxW - 10
+		frame := int(t.rotation*40) % (len(hint) + bounceWidth + 4)
+		displayHint := hint
+		if frame < len(hint) {
+			// Show portion of hint with leading spaces
+			displayHint = strings.Repeat(" ", frame) + hint
+			if len(displayHint) > bounceWidth {
+				displayHint = displayHint[:bounceWidth]
+			}
+		} else if frame < len(hint)+bounceWidth {
+			// Full hint scrolling
+			spaces := frame - len(hint)
+			displayHint = hint + strings.Repeat(" ", spaces)
+		}
+		hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF00"))
+		c.SetString(boxX+2, boxY+4, "HINT: "+displayHint, hintStyle)
+	}
 
 	return c.Render()
 }
@@ -183,8 +204,8 @@ type FalloutTheme struct {
 	BaseTheme
 }
 
-func NewFalloutTheme() Theme { return &FalloutTheme{} }
-func (t *FalloutTheme) Name() string { return "Pip-Boy 3000" }
+func NewFalloutTheme() Theme                { return &FalloutTheme{} }
+func (t *FalloutTheme) Name() string        { return "Pip-Boy 3000" }
 func (t *FalloutTheme) Description() string { return "Vault-Tec Approved" }
 
 func (t *FalloutTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
@@ -219,6 +240,11 @@ func (t *FalloutTheme) View(width, height int, q *game.Question, inputView strin
 
 	c.SetString(contentX, 12, "> "+inputView+"_", green)
 
+	// Hint - static placement below input
+	if hint != "" {
+		c.SetString(contentX, 14, "HINT: "+hint, green)
+	}
+
 	// Footer
 	c.SetString(4, height-3, " [ENTER] SELECT   [TAB] BACK ", green)
 
@@ -231,8 +257,8 @@ type DeusExTheme struct {
 	BaseTheme
 }
 
-func NewDeusExTheme() Theme { return &DeusExTheme{} }
-func (t *DeusExTheme) Name() string { return "Augmented Reality" }
+func NewDeusExTheme() Theme                { return &DeusExTheme{} }
+func (t *DeusExTheme) Name() string        { return "Augmented Reality" }
 func (t *DeusExTheme) Description() string { return "I never asked for this" }
 
 func (t *DeusExTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
@@ -260,6 +286,11 @@ func (t *DeusExTheme) View(width, height int, q *game.Question, inputView string
 	// Content
 	c.SetString(10, height/2-3, q.Text, gold.Bold(true))
 	c.SetString(10, height/2+1, "INPUT: "+inputView, gold)
+
+	// Hint - static placement below input
+	if hint != "" {
+		c.SetString(10, height/2+3, "CLUE: "+hint, gold)
+	}
 
 	// Decoration
 	c.SetString(width-10, height-5, "AUGMENTATION", gold)

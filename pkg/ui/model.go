@@ -351,6 +351,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.WrongAnswers >= 1 {
 					m.ShowHint = true
 				}
+				m.Input.Reset()
 			}
 		} else {
 			m.Input, cmd = m.Input.Update(msg)

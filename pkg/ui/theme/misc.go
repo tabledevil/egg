@@ -16,11 +16,20 @@ import (
 
 type BBSTheme struct {
 	BaseTheme
+	frame int
 }
 
-func NewBBSTheme() Theme { return &BBSTheme{} }
-func (t *BBSTheme) Name() string { return "BBS Era" }
+func NewBBSTheme() Theme                { return &BBSTheme{} }
+func (t *BBSTheme) Name() string        { return "BBS Era" }
 func (t *BBSTheme) Description() string { return "14.4k Modem" }
+
+func (t *BBSTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
+	if _, ok := msg.(game.TickMsg); ok {
+		t.frame++
+		return t, Tick()
+	}
+	return t, nil
+}
 
 func (t *BBSTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	c := canvas.New(width, height)
@@ -48,12 +57,25 @@ func (t *BBSTheme) View(width, height int, q *game.Question, inputView string, h
 
 	// Box
 	boxY := y + 2
-	c.DrawBox(5, boxY, width-10, height-boxY-2, magenta)
+	boxH := height - boxY - 4
+	c.DrawBox(5, boxY, width-10, boxH, magenta)
 
 	c.SetString(7, boxY+2, "Message from SysOp:", white)
 	c.SetString(7, boxY+4, q.Text, white)
 
 	c.SetString(7, boxY+7, "Response: "+inputView, cyan)
+
+	// Hint with marquee scrolling (modem-style)
+	if hint != "" {
+		frame := t.frame % (len(hint) + 40)
+		displayHint := hint
+		if frame < len(hint) {
+			displayHint = hint[frame:]
+		} else {
+			displayHint = hint + strings.Repeat(" ", frame-len(hint))
+		}
+		c.SetString(7, boxY+9, "HINT: "+displayHint, white)
+	}
 
 	c.SetString(width-20, height-2, "NO CARRIER", lipgloss.NewStyle().Foreground(lipgloss.Color("1")))
 
@@ -65,16 +87,18 @@ func (t *BBSTheme) View(width, height int, q *game.Question, inputView string, h
 type StrangerThingsTheme struct {
 	BaseTheme
 	litChar rune
+	frame   int
 }
 
-func NewStrangerThingsTheme() Theme { return &StrangerThingsTheme{} }
-func (t *StrangerThingsTheme) Name() string { return "Upside Down" }
+func NewStrangerThingsTheme() Theme                { return &StrangerThingsTheme{} }
+func (t *StrangerThingsTheme) Name() string        { return "Upside Down" }
 func (t *StrangerThingsTheme) Description() string { return "R-U-N" }
 
 func (t *StrangerThingsTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		// Randomly light up a character A-Z
 		t.litChar = rune('A' + rand.Intn(26))
+		t.frame++
 		return t, Tick()
 	}
 	return t, nil
@@ -108,6 +132,13 @@ func (t *StrangerThingsTheme) View(width, height int, q *game.Question, inputVie
 	c.SetString(width/2-10, height-5, q.Text, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")))
 	c.SetString(width/2-10, height-3, "> "+inputView, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")))
 
+	// Hint with blink effect - hint pulses with alphabet
+	if hint != "" {
+		if t.frame%10 < 5 {
+			c.SetString(width/2-10, height-7, "HINT: "+hint, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true))
+		}
+	}
+
 	return c.Render()
 }
 
@@ -115,11 +146,20 @@ func (t *StrangerThingsTheme) View(width, height int, q *game.Question, inputVie
 
 type BladeRunnerTheme struct {
 	BaseTheme
+	frame int
 }
 
-func NewBladeRunnerTheme() Theme { return &BladeRunnerTheme{} }
-func (t *BladeRunnerTheme) Name() string { return "Voight-Kampff" }
+func NewBladeRunnerTheme() Theme                { return &BladeRunnerTheme{} }
+func (t *BladeRunnerTheme) Name() string        { return "Voight-Kampff" }
 func (t *BladeRunnerTheme) Description() string { return "Enhance 224 to 176" }
+
+func (t *BladeRunnerTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
+	if _, ok := msg.(game.TickMsg); ok {
+		t.frame++
+		return t, Tick()
+	}
+	return t, nil
+}
 
 func (t *BladeRunnerTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	c := canvas.New(width, height)
@@ -153,6 +193,13 @@ func (t *BladeRunnerTheme) View(width, height int, q *game.Question, inputView s
 	c.SetString(30, 8, "SUBJECT: "+q.Text, orange)
 	c.SetString(30, 10, "EMOTIONAL RESPONSE: "+inputView, orange)
 
+	// Hint with blink effect - orange pulsing hint
+	if hint != "" {
+		if t.frame%12 < 8 {
+			c.SetString(30, 12, "ANALYSIS: "+hint, orange)
+		}
+	}
+
 	c.SetString(width-20, height-2, "VOIGHT-KAMPFF TEST", orange)
 
 	return c.Render()
@@ -165,14 +212,16 @@ type BootTheme struct {
 	memCount int
 }
 
-func NewBootTheme() Theme { return &BootTheme{} }
-func (t *BootTheme) Name() string { return "POST Screen" }
+func NewBootTheme() Theme                { return &BootTheme{} }
+func (t *BootTheme) Name() string        { return "POST Screen" }
 func (t *BootTheme) Description() string { return "BIOS Check" }
 
 func (t *BootTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.memCount += 1024
-		if t.memCount > 640000 { t.memCount = 0 }
+		if t.memCount > 640000 {
+			t.memCount = 0
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -194,6 +243,19 @@ func (t *BootTheme) View(width, height int, q *game.Question, inputView string, 
 	c.SetString(2, 12, "KERNEL MSG: "+q.Text, white)
 	c.SetString(2, 14, "login: "+inputView, white)
 
+	// Hint with marquee scrolling (BIOS ticker style)
+	if hint != "" {
+		frame := t.memCount / 1024
+		scrollPos := frame % (len(hint) + 50)
+		displayHint := hint
+		if scrollPos < len(hint) {
+			displayHint = hint[scrollPos:]
+		} else {
+			displayHint = hint + strings.Repeat(" ", scrollPos-len(hint))
+		}
+		c.SetString(2, 16, "HINT: "+displayHint, white)
+	}
+
 	return c.Render()
 }
 
@@ -201,11 +263,20 @@ func (t *BootTheme) View(width, height int, q *game.Question, inputView string, 
 
 type GhostInShellTheme struct {
 	BaseTheme
+	frame int
 }
 
-func NewGhostInShellTheme() Theme { return &GhostInShellTheme{} }
-func (t *GhostInShellTheme) Name() string { return "Section 9" }
+func NewGhostInShellTheme() Theme                { return &GhostInShellTheme{} }
+func (t *GhostInShellTheme) Name() string        { return "Section 9" }
 func (t *GhostInShellTheme) Description() string { return "Stand Alone Complex" }
+
+func (t *GhostInShellTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
+	if _, ok := msg.(game.TickMsg); ok {
+		t.frame++
+		return t, Tick()
+	}
+	return t, nil
+}
 
 func (t *GhostInShellTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
 	c := canvas.New(width, height)
@@ -227,6 +298,17 @@ func (t *GhostInShellTheme) View(width, height int, q *game.Question, inputView 
 
 	c.SetString(centerX-len(q.Text)/2, centerY, q.Text, green.Bold(true))
 	c.SetString(centerX-10, centerY+2, "> "+inputView, green)
+
+	// Hint with typewriter effect
+	if hint != "" {
+		revealLen := (t.frame / 3) % (len(hint) + 3)
+		if revealLen > len(hint) {
+			revealLen = len(hint)
+		}
+		if revealLen > 0 {
+			c.SetString(centerX-10, centerY+4, "HINT: "+hint[:revealLen], green)
+		}
+	}
 
 	return c.Render()
 }
