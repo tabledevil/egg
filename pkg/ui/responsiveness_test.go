@@ -121,3 +121,31 @@ func TestModelInit(t *testing.T) {
 		t.Errorf("Init should return initial commands")
 	}
 }
+
+func TestResponsiveness_DebugSnapshotHotkey(t *testing.T) {
+	cfg := &game.Config{
+		Questions: []game.Question{{ID: 1, Text: "Q1", Answer: "A1"}},
+	}
+	m := NewModel(cfg)
+
+	nextModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyF5})
+	if cmd == nil {
+		t.Fatalf("expected tea.Quit command for debug hotkey")
+	}
+
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("debug hotkey command did not produce QuitMsg")
+	}
+
+	updated, ok := nextModel.(Model)
+	if !ok {
+		t.Fatalf("expected updated model type ui.Model")
+	}
+
+	if !updated.DebugDumpRequested {
+		t.Fatalf("expected debug dump to be requested")
+	}
+	if updated.DebugDumpTrigger == "" {
+		t.Fatalf("expected debug dump trigger to be populated")
+	}
+}

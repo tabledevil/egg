@@ -19,10 +19,38 @@ import (
 
 var sgrTextPattern = regexp.MustCompile(`\[[0-9;]*m`)
 
+const transitionWatchdogTicks = 1800
+
 func tick() tea.Cmd {
 	return tea.Tick(time.Millisecond*33, func(t time.Time) tea.Msg {
 		return game.TickMsg(t)
 	})
+}
+
+func isDebugDumpKey(msg tea.KeyMsg) bool {
+	key := strings.ToLower(strings.TrimSpace(msg.String()))
+	if key == "ctrl+f5" {
+		return true
+	}
+	if msg.Type == tea.KeyF5 || key == "f5" {
+		return true
+	}
+	return false
+}
+
+func gameStateName(state GameState) string {
+	switch state {
+	case StateIntro:
+		return "intro"
+	case StateQuestion:
+		return "question"
+	case StateTransition:
+		return "transition"
+	case StateSuccess:
+		return "success"
+	default:
+		return fmt.Sprintf("unknown(%d)", state)
+	}
 }
 
 type Model struct {
@@ -37,12 +65,16 @@ type Model struct {
 	Showcase bool
 
 	// Game State
-	CurrentQuestionIndex int
-	WrongAnswers         int
-	ActiveBoot           boot.Intro
-	ActiveTheme          theme.Theme
-	ActiveTransition     transition.Transition
-	BootStatus           string
+	CurrentQuestionIndex  int
+	WrongAnswers          int
+	ActiveBoot            boot.Intro
+	ActiveTheme           theme.Theme
+	ActiveTransition      transition.Transition
+	BootStatus            string
+	TransitionTickCount   int
+	TransitionWatchdogHit bool
+	DebugDumpRequested    bool
+	DebugDumpTrigger      string
 
 	// Animation State
 	TypewriterIndex int
@@ -91,6 +123,8 @@ func (m *Model) EnableShowcase() {
 	m.ShowHint = true
 	m.ActiveBoot = nil
 	m.BootStatus = ""
+	m.TransitionTickCount = 0
+	m.TransitionWatchdogHit = false
 
 	// Prefer a stable first question.
 	if len(m.Config.Questions) > 0 {
@@ -254,6 +288,8 @@ func (m *Model) StartShowcaseTransition() tea.Cmd {
 
 	// 4. Create next transition (sequential).
 	m.State = StateTransition
+	m.TransitionTickCount = 0
+	m.TransitionWatchdogHit = false
 	if len(transition.Registry) > 0 {
 		m.ActiveTransition = m.nextCompatibleTransition()
 		if m.ActiveTransition == nil {
@@ -310,6 +346,8 @@ func (m *Model) StartTransition() tea.Cmd {
 
 	// 5. Create Transition
 	m.State = StateTransition
+	m.TransitionTickCount = 0
+	m.TransitionWatchdogHit = false
 	if len(transition.Registry) > 0 {
 		m.ActiveTransition = m.randomCompatibleTransition()
 		if m.ActiveTransition == nil {
@@ -339,6 +377,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if isDebugDumpKey(msg) {
+			m.DebugDumpRequested = true
+			trigger := strings.TrimSpace(msg.String())
+			if trigger == "" {
+				trigger = fmt.Sprintf("%v", msg.Type)
+			}
+			m.DebugDumpTrigger = trigger
+			return m, tea.Quit
+		}
+
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyCtrlX, tea.KeyEsc, tea.KeyF12:
 			return m, tea.Quit
@@ -409,6 +457,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case StateTransition:
+		if _, ok := msg.(game.TickMsg); ok {
+			m.TransitionTickCount++
+			if m.TransitionTickCount > transitionWatchdogTicks {
+				m.TransitionWatchdogHit = true
+				m.ActiveTransition = nil
+				m.State = StateQuestion
+				m.TypewriterIndex = 0
+				break
+			}
+		}
+
 		if m.ActiveTransition != nil {
 			var tCmd tea.Cmd
 			nextTransition, tCmd := m.ActiveTransition.Update(msg)
@@ -418,6 +477,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, tCmd)
 
 			if m.ActiveTransition.Done() {
+				m.ActiveTransition = nil
 				m.State = StateQuestion
 				m.TypewriterIndex = 0
 			}
@@ -608,4 +668,72 @@ func (m *Model) themeInputValue() string {
 	plain = strings.ReplaceAll(plain, "\n", " ")
 	plain = strings.ReplaceAll(plain, "\r", " ")
 	return plain
+}
+
+func typeName(v any) string {
+	if v == nil {
+		return "(none)"
+	}
+	return fmt.Sprintf("%T", v)
+}
+
+func trimForDebug(s string, maxLen int) string {
+	if maxLen <= 0 || len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}
+
+func (m Model) DebugSnapshot() string {
+	inputPreview := ansi.Strip(m.Input.Value())
+	inputPreview = sgrTextPattern.ReplaceAllString(inputPreview, "")
+	inputPreview = strings.ReplaceAll(inputPreview, "\n", " ")
+	inputPreview = strings.ReplaceAll(inputPreview, "\r", " ")
+
+	activeThemeName := "(none)"
+	if m.ActiveTheme != nil {
+		activeThemeName = m.ActiveTheme.Name()
+	}
+
+	activeBootName := "(none)"
+	activeBootDone := false
+	if m.ActiveBoot != nil {
+		activeBootName = m.ActiveBoot.Name()
+		activeBootDone = m.ActiveBoot.Done()
+	}
+
+	qID := -1
+	qText := ""
+	if m.Config != nil && m.CurrentQuestionIndex >= 0 && m.CurrentQuestionIndex < len(m.Config.Questions) {
+		q := m.Config.Questions[m.CurrentQuestionIndex]
+		qID = q.ID
+		qText = trimForDebug(q.Text, 96)
+	}
+
+	var b strings.Builder
+	b.WriteString("=== EGG DEBUG SNAPSHOT ===\n")
+	b.WriteString("timestamp: ")
+	b.WriteString(time.Now().Format(time.RFC3339Nano))
+	b.WriteString("\n")
+	b.WriteString("trigger: ")
+	b.WriteString(trimForDebug(m.DebugDumpTrigger, 64))
+	b.WriteString("\n")
+	b.WriteString("state: ")
+	b.WriteString(gameStateName(m.State))
+	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("terminal: width=%d height=%d\n", m.Width, m.Height))
+	b.WriteString(fmt.Sprintf("caps: color=%v unicode=%t interactive=%t\n", m.Caps.ColorProfile, m.Caps.HasUnicode, m.Caps.IsInteractive))
+	b.WriteString(fmt.Sprintf("boot: name=%q done=%t status=%q\n", activeBootName, activeBootDone, m.BootStatus))
+	b.WriteString(fmt.Sprintf("theme: name=%q type=%s\n", activeThemeName, typeName(m.ActiveTheme)))
+	b.WriteString(fmt.Sprintf("transition: type=%s ticks=%d watchdog_hit=%t watchdog_limit=%d\n", typeName(m.ActiveTransition), m.TransitionTickCount, m.TransitionWatchdogHit, transitionWatchdogTicks))
+	b.WriteString(fmt.Sprintf("progress: question_index=%d question_id=%d wrong_answers=%d hint_visible=%t typewriter_index=%d\n", m.CurrentQuestionIndex, qID, m.WrongAnswers, m.ShowHint, m.TypewriterIndex))
+	b.WriteString(fmt.Sprintf("question_preview: %q\n", qText))
+	b.WriteString(fmt.Sprintf("input: len=%d value=%q\n", len([]rune(inputPreview)), trimForDebug(inputPreview, 96)))
+	b.WriteString(fmt.Sprintf("modes: showcase=%t auto_demo=%t\n", m.Showcase, m.AutoDemo))
+	b.WriteString("=== END SNAPSHOT ===")
+
+	return b.String()
 }

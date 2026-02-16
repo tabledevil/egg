@@ -39,6 +39,23 @@ func buildFrame(label string, width, height int) string {
 	return b.String()
 }
 
+func buildANSIFrame(label string, width, height int) string {
+	var b strings.Builder
+	for y := 0; y < height; y++ {
+		line := fmt.Sprintf("\x1b[38;5;196m%s\x1b[0m RAW[38;5;196m LINE %02d", label, y)
+		if len(line) < width {
+			line += strings.Repeat(" ", width-len(line))
+		} else if len(line) > width {
+			line = line[:width]
+		}
+		b.WriteString(line)
+		if y < height-1 {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
 func TestTransitionsRenderAndComplete(t *testing.T) {
 	if len(Registry) == 0 {
 		t.Fatalf("expected transition registry to be populated")
@@ -83,5 +100,54 @@ func TestTransitionsRenderAndComplete(t *testing.T) {
 				t.Fatalf("transition %s never finished after %d ticks", name, maxTicks)
 			}
 		})
+	}
+}
+
+func TestTransitionsSanitizeEmbeddedAnsiFragments(t *testing.T) {
+	if len(Registry) == 0 {
+		t.Fatalf("expected transition registry to be populated")
+	}
+
+	const width, height = 70, 20
+	oldView := buildANSIFrame("OLD", width, height)
+	newView := buildANSIFrame("NEW", width, height)
+
+	for _, constructor := range Registry {
+		tr := constructor()
+		name := fmt.Sprintf("transition_%T", tr)
+
+		t.Run(name, func(t *testing.T) {
+			tr.SetContent(oldView, newView)
+
+			view := stripANSICodes(tr.View(width, height))
+			if strings.Contains(view, "[38;5;196m") {
+				t.Fatalf("embedded ANSI fragment leaked into transition output")
+			}
+
+			for i := 0; i < 30; i++ {
+				next, _ := tr.Update(game.TickMsg(time.Now()))
+				if next != nil {
+					tr = next
+				}
+				view = stripANSICodes(tr.View(width, height))
+				if strings.Contains(view, "[38;5;196m") {
+					t.Fatalf("embedded ANSI fragment leaked after tick %d", i)
+				}
+			}
+		})
+	}
+}
+
+func TestMatrixWipeAdaptsToViewportWidth(t *testing.T) {
+	tr, ok := NewMatrixWipe().(*MatrixWipe)
+	if !ok {
+		t.Fatalf("expected MatrixWipe constructor to return *MatrixWipe")
+	}
+
+	tr.SetContent("short", "new")
+	_ = tr.View(120, 24)
+
+	if got := len(tr.columns); got != 120 {
+		t.Fatalf("expected matrix columns to match viewport width, got %d", got)
 	}
 }

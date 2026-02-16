@@ -64,7 +64,9 @@ func (t *Explosion) Update(msg tea.Msg) (Transition, tea.Cmd) {
 			t.particles[i].vy += 0.1 // Gravity
 		}
 
-		if t.time > 5.0 { t.done = true }
+		if t.time > 5.0 {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -85,7 +87,9 @@ func (t *Explosion) View(width, height int) string {
 
 	// Fade in New Screen
 	alpha := t.time / 3.0
-	if alpha > 1.0 { alpha = 1.0 }
+	if alpha > 1.0 {
+		alpha = 1.0
+	}
 
 	if alpha > 0.5 {
 		for y := 0; y < height; y++ {
@@ -108,10 +112,13 @@ func (t *Explosion) View(width, height int) string {
 
 func (t *Explosion) Done() bool { return t.done }
 func (t *Explosion) ensureLines(h int) {
-	for len(t.oldLines) < h { t.oldLines = append(t.oldLines, "") }
-	for len(t.newLines) < h { t.newLines = append(t.newLines, "") }
+	for len(t.oldLines) < h {
+		t.oldLines = append(t.oldLines, "")
+	}
+	for len(t.newLines) < h {
+		t.newLines = append(t.newLines, "")
+	}
 }
-
 
 // --- 17. Teleporter ---
 
@@ -154,13 +161,17 @@ func (t *Teleporter) View(width, height int) string {
 	sparkle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FFFF"))
 
 	lines := t.oldLines
-	if t.phase == 1 { lines = t.newLines }
+	if t.phase == 1 {
+		lines = t.newLines
+	}
 
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			// Probability of showing char vs sparkle vs empty
 			prob := 1.0 - t.progress
-			if t.phase == 1 { prob = t.progress }
+			if t.phase == 1 {
+				prob = t.progress
+			}
 
 			if rand.Float64() < prob {
 				char := ' '
@@ -178,10 +189,13 @@ func (t *Teleporter) View(width, height int) string {
 
 func (t *Teleporter) Done() bool { return t.done }
 func (t *Teleporter) ensureLines(h int) {
-	for len(t.oldLines) < h { t.oldLines = append(t.oldLines, "") }
-	for len(t.newLines) < h { t.newLines = append(t.newLines, "") }
+	for len(t.oldLines) < h {
+		t.oldLines = append(t.oldLines, "")
+	}
+	for len(t.newLines) < h {
+		t.newLines = append(t.newLines, "")
+	}
 }
-
 
 // --- 18. Film Reel ---
 
@@ -191,14 +205,16 @@ type FilmReel struct {
 	done  bool
 }
 
-func NewFilmReel() Transition { return &FilmReel{count: 3} }
+func NewFilmReel() Transition              { return &FilmReel{count: 3} }
 func (t *FilmReel) SetContent(o, n string) {}
 
 func (t *FilmReel) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		if rand.Float64() < 0.05 { // Slow countdown
 			t.count--
-			if t.count < 0 { t.done = true }
+			if t.count < 0 {
+				t.done = true
+			}
 		}
 		return t, Tick()
 	}
@@ -213,7 +229,9 @@ func (t *FilmReel) View(width, height int) string {
 
 	// Big Number
 	num := fmt.Sprintf("%d", t.count)
-	if t.count == 0 { num = "START" }
+	if t.count == 0 {
+		num = "START"
+	}
 
 	c.Fill(0, 0, width, height, ' ', style)
 	c.DrawBox(2, 2, width-4, height-4, style)
@@ -232,16 +250,16 @@ func (t *FilmReel) View(width, height int) string {
 
 func (t *FilmReel) Done() bool { return t.done }
 
-
 // --- 19. Defrag ---
 
 type Defrag struct {
 	BaseTransition
-	oldLines []string
-	newLines []string
-	blocks   []int // 0=empty, 1=filled
-	cursor   int
-	done     bool
+	oldLines   []string
+	newLines   []string
+	blocks     []int // 0=empty, 1=filled
+	cursor     int
+	done       bool
+	totalCells int
 }
 
 func NewDefrag() Transition { return &Defrag{} }
@@ -253,9 +271,20 @@ func (t *Defrag) SetContent(o, n string) {
 
 func (t *Defrag) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
-		t.cursor += 50
-		// Heuristic max
-		if t.cursor > 5000 { t.done = true }
+		totalCells := t.totalCells
+		if totalCells <= 0 {
+			totalCells = 5000
+		}
+
+		step := totalCells / 90
+		if step < 40 {
+			step = 40
+		}
+
+		t.cursor += step
+		if t.cursor >= totalCells {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -263,6 +292,7 @@ func (t *Defrag) Update(msg tea.Msg) (Transition, tea.Cmd) {
 
 func (t *Defrag) View(width, height int) string {
 	c := canvas.New(width, height)
+	t.totalCells = width * height
 
 	// Visualizing defrag as blocks
 	// Not actual content transition, just visual
@@ -289,7 +319,6 @@ func (t *Defrag) View(width, height int) string {
 
 func (t *Defrag) Done() bool { return t.done }
 
-
 // --- 20. Wave Distortion ---
 
 type WaveDistortion struct {
@@ -310,7 +339,9 @@ func (t *WaveDistortion) SetContent(o, n string) {
 func (t *WaveDistortion) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.offset += 0.2
-		if t.offset > 6.0 { t.done = true }
+		if t.offset > 6.0 {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -325,14 +356,18 @@ func (t *WaveDistortion) View(width, height int) string {
 	// Let's distort Old -> New swap -> distort New
 
 	lines := t.oldLines
-	if t.offset > 3.0 { lines = t.newLines }
+	if t.offset > 3.0 {
+		lines = t.newLines
+	}
 
 	for y := 0; y < height; y++ {
 		// Sine wave shift x
-		shift := int(5.0 * math.Sin(float64(y)*0.5 + t.offset))
+		shift := int(5.0 * math.Sin(float64(y)*0.5+t.offset))
 
 		line := ""
-		if y < len(lines) { line = lines[y] }
+		if y < len(lines) {
+			line = lines[y]
+		}
 
 		for x := 0; x < width; x++ {
 			srcX := x - shift
@@ -346,8 +381,12 @@ func (t *WaveDistortion) View(width, height int) string {
 
 func (t *WaveDistortion) Done() bool { return t.done }
 func (t *WaveDistortion) ensureLines(h int) {
-	for len(t.oldLines) < h { t.oldLines = append(t.oldLines, "") }
-	for len(t.newLines) < h { t.newLines = append(t.newLines, "") }
+	for len(t.oldLines) < h {
+		t.oldLines = append(t.oldLines, "")
+	}
+	for len(t.newLines) < h {
+		t.newLines = append(t.newLines, "")
+	}
 }
 
 func init() {

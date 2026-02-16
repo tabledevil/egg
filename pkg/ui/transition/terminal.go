@@ -30,7 +30,9 @@ func (t *FakeDecryption) SetContent(o, n string) {
 func (t *FakeDecryption) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.progress += 0.02
-		if t.progress >= 1.2 { t.done = true }
+		if t.progress >= 1.2 {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -59,7 +61,7 @@ func (t *FakeDecryption) View(width, height int) string {
 				if y < len(t.oldLines) && x < len(t.oldLines[y]) {
 					char = rune(t.oldLines[y][x])
 				}
-			} else if t.progress > lockTime + 0.2 {
+			} else if t.progress > lockTime+0.2 {
 				// Locked New
 				if y < len(t.newLines) && x < len(t.newLines[y]) {
 					char = rune(t.newLines[y][x])
@@ -79,19 +81,23 @@ func (t *FakeDecryption) View(width, height int) string {
 
 func (t *FakeDecryption) Done() bool { return t.done }
 func (t *FakeDecryption) ensureLines(h int) {
-	for len(t.oldLines) < h { t.oldLines = append(t.oldLines, "") }
-	for len(t.newLines) < h { t.newLines = append(t.newLines, "") }
+	for len(t.oldLines) < h {
+		t.oldLines = append(t.oldLines, "")
+	}
+	for len(t.newLines) < h {
+		t.newLines = append(t.newLines, "")
+	}
 }
-
 
 // --- 12. Terminal Scroll ---
 
 type TerminalScroll struct {
 	BaseTransition
-	oldLines []string
-	newLines []string
-	offset   int
-	done     bool
+	oldLines   []string
+	newLines   []string
+	offset     int
+	done       bool
+	viewHeight int
 }
 
 func NewTerminalScroll() Transition { return &TerminalScroll{} }
@@ -103,7 +109,13 @@ func (t *TerminalScroll) SetContent(o, n string) {
 func (t *TerminalScroll) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.offset += 2
-		if t.offset > 50 { t.done = true } // Heuristic
+		targetHeight := t.viewHeight
+		if targetHeight < 1 {
+			targetHeight = 50
+		}
+		if t.offset >= targetHeight {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -112,6 +124,7 @@ func (t *TerminalScroll) Update(msg tea.Msg) (Transition, tea.Cmd) {
 func (t *TerminalScroll) View(width, height int) string {
 	c := canvas.New(width, height)
 	t.ensureLines(height)
+	t.viewHeight = height
 
 	// Draw Old at -offset
 	// Draw New coming up from bottom?
@@ -136,31 +149,33 @@ func (t *TerminalScroll) View(width, height int) string {
 		drawY := startNewY + y
 		if drawY >= 0 && drawY < height {
 			line := ""
-			if y < len(t.newLines) { line = t.newLines[y] }
+			if y < len(t.newLines) {
+				line = t.newLines[y]
+			}
 			c.SetString(0, drawY, line, lipgloss.NewStyle())
 		}
 	}
-
-	// If new screen has fully scrolled in (offset >= height)
-	if t.offset >= height { t.done = true }
 
 	return c.Render()
 }
 
 func (t *TerminalScroll) Done() bool { return t.done }
 func (t *TerminalScroll) ensureLines(h int) {
-	for len(t.oldLines) < h { t.oldLines = append(t.oldLines, "") }
+	for len(t.oldLines) < h {
+		t.oldLines = append(t.oldLines, "")
+	}
 }
-
 
 // --- 13. Typewriter Overtype ---
 
 type TypewriterOvertype struct {
 	BaseTransition
-	oldLines []string
-	newLines []string
+	oldLines         []string
+	newLines         []string
 	cursorX, cursorY int
-	done     bool
+	done             bool
+	viewWidth        int
+	viewHeight       int
 }
 
 func NewTypewriterOvertype() Transition { return &TypewriterOvertype{} }
@@ -171,15 +186,26 @@ func (t *TypewriterOvertype) SetContent(o, n string) {
 
 func (t *TypewriterOvertype) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
+		width := t.viewWidth
+		height := t.viewHeight
+		if width < 1 {
+			width = 80
+		}
+		if height < 1 {
+			height = 30
+		}
+
 		// Speed typing
 		for i := 0; i < 5; i++ {
 			t.cursorX++
-			if t.cursorX > 80 { // Line width limit
+			if t.cursorX >= width {
 				t.cursorX = 0
 				t.cursorY++
 			}
 		}
-		if t.cursorY > 30 { t.done = true }
+		if t.cursorY >= height {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -188,6 +214,8 @@ func (t *TypewriterOvertype) Update(msg tea.Msg) (Transition, tea.Cmd) {
 func (t *TypewriterOvertype) View(width, height int) string {
 	c := canvas.New(width, height)
 	t.ensureLines(height)
+	t.viewWidth = width
+	t.viewHeight = height
 
 	cursorStyle := lipgloss.NewStyle().Background(lipgloss.Color("#FFFFFF"))
 
@@ -196,32 +224,48 @@ func (t *TypewriterOvertype) View(width, height int) string {
 
 		if y < t.cursorY {
 			// Fully New
-			if y < len(t.newLines) { line = t.newLines[y] }
+			if y < len(t.newLines) {
+				line = t.newLines[y]
+			}
 		} else if y == t.cursorY {
 			// Mixed
 			newLine := ""
-			if y < len(t.newLines) { newLine = t.newLines[y] }
+			if y < len(t.newLines) {
+				newLine = t.newLines[y]
+			}
 			oldLine := ""
-			if y < len(t.oldLines) { oldLine = t.oldLines[y] }
+			if y < len(t.oldLines) {
+				oldLine = t.oldLines[y]
+			}
 
 			// Construct mixed line
 			res := ""
 			maxLen := max(len(newLine), len(oldLine))
 			for x := 0; x < maxLen; x++ {
 				if x < t.cursorX {
-					if x < len(newLine) { res += string(newLine[x]) } else { res += " " }
+					if x < len(newLine) {
+						res += string(newLine[x])
+					} else {
+						res += " "
+					}
 				} else if x == t.cursorX {
 					// Cursor pos
 					// handled by setChar overlay usually, but here string building
 					res += " "
 				} else {
-					if x < len(oldLine) { res += string(oldLine[x]) } else { res += " " }
+					if x < len(oldLine) {
+						res += string(oldLine[x])
+					} else {
+						res += " "
+					}
 				}
 			}
 			line = res
 		} else {
 			// Fully Old
-			if y < len(t.oldLines) { line = t.oldLines[y] }
+			if y < len(t.oldLines) {
+				line = t.oldLines[y]
+			}
 		}
 
 		c.SetString(0, y, line, lipgloss.NewStyle())
@@ -234,11 +278,19 @@ func (t *TypewriterOvertype) View(width, height int) string {
 
 func (t *TypewriterOvertype) Done() bool { return t.done }
 func (t *TypewriterOvertype) ensureLines(h int) {
-	for len(t.oldLines) < h { t.oldLines = append(t.oldLines, "") }
-	for len(t.newLines) < h { t.newLines = append(t.newLines, "") }
+	for len(t.oldLines) < h {
+		t.oldLines = append(t.oldLines, "")
+	}
+	for len(t.newLines) < h {
+		t.newLines = append(t.newLines, "")
+	}
 }
-func max(a, b int) int { if a > b { return a }; return b }
-
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 
 // --- 14. Memory Rewrite ---
 
@@ -257,7 +309,9 @@ func (t *MemoryRewrite) SetContent(o, n string) {
 func (t *MemoryRewrite) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.addr += 4
-		if t.addr > 200 { t.done = true }
+		if t.addr > 200 {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -280,7 +334,9 @@ func (t *MemoryRewrite) View(width, height int) string {
 		} else {
 			// Show hex soup
 			soup := ""
-			for i := 0; i < 8; i++ { soup += fmt.Sprintf("%02X ", rand.Intn(256)) }
+			for i := 0; i < 8; i++ {
+				soup += fmt.Sprintf("%02X ", rand.Intn(256))
+			}
 			c.SetString(12, y, soup, hexStyle)
 		}
 	}
@@ -288,7 +344,6 @@ func (t *MemoryRewrite) View(width, height int) string {
 }
 
 func (t *MemoryRewrite) Done() bool { return t.done }
-
 
 // --- 15. Compile Transition ---
 
@@ -299,7 +354,7 @@ type CompileTransition struct {
 	done     bool
 }
 
-func NewCompileTransition() Transition { return &CompileTransition{} }
+func NewCompileTransition() Transition              { return &CompileTransition{} }
 func (t *CompileTransition) SetContent(o, n string) {}
 
 func (t *CompileTransition) Update(msg tea.Msg) (Transition, tea.Cmd) {
@@ -308,7 +363,9 @@ func (t *CompileTransition) Update(msg tea.Msg) (Transition, tea.Cmd) {
 		if rand.Float64() < 0.3 {
 			t.logs = append(t.logs, fmt.Sprintf("Compiling object_%d.o ...", rand.Intn(999)))
 		}
-		if t.progress >= 1.0 { t.done = true }
+		if t.progress >= 1.0 {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -319,7 +376,9 @@ func (t *CompileTransition) View(width, height int) string {
 
 	// Draw logs scrolling
 	start := 0
-	if len(t.logs) > height-2 { start = len(t.logs) - (height - 2) }
+	if len(t.logs) > height-2 {
+		start = len(t.logs) - (height - 2)
+	}
 
 	for i, log := range t.logs[start:] {
 		c.SetString(0, i, log, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF00")))

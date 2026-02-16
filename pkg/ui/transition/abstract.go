@@ -31,7 +31,9 @@ func (t *NeuralNetwork) SetContent(o, n string) {
 func (t *NeuralNetwork) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.progress += 0.05
-		if t.progress >= 1.5 { t.done = true }
+		if t.progress >= 1.5 {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -51,12 +53,16 @@ func (t *NeuralNetwork) View(width, height int) string {
 	// If progress > 0.5: draw network fading out over New
 
 	lines := t.oldLines
-	if t.progress > 0.75 { lines = t.newLines }
+	if t.progress > 0.75 {
+		lines = t.newLines
+	}
 
 	// Background content
 	for y := 0; y < height; y++ {
 		line := ""
-		if y < len(lines) { line = lines[y] }
+		if y < len(lines) {
+			line = lines[y]
+		}
 		c.SetString(0, y, line, lipgloss.NewStyle().Faint(true))
 	}
 
@@ -83,10 +89,13 @@ func (t *NeuralNetwork) View(width, height int) string {
 
 func (t *NeuralNetwork) Done() bool { return t.done }
 func (t *NeuralNetwork) ensureLines(h int) {
-	for len(t.oldLines) < h { t.oldLines = append(t.oldLines, "") }
-	for len(t.newLines) < h { t.newLines = append(t.newLines, "") }
+	for len(t.oldLines) < h {
+		t.oldLines = append(t.oldLines, "")
+	}
+	for len(t.newLines) < h {
+		t.newLines = append(t.newLines, "")
+	}
 }
-
 
 // --- 22. File Transfer ---
 
@@ -105,7 +114,9 @@ func (t *FileTransfer) SetContent(o, n string) {
 func (t *FileTransfer) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.progress += 0.02
-		if t.progress >= 1.0 { t.done = true }
+		if t.progress >= 1.0 {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -139,7 +150,6 @@ func (t *FileTransfer) View(width, height int) string {
 
 func (t *FileTransfer) Done() bool { return t.done }
 
-
 // --- 23. Redaction ---
 
 type Redaction struct {
@@ -164,7 +174,9 @@ func (t *Redaction) Update(msg tea.Msg) (Transition, tea.Cmd) {
 		if t.progress >= 1.0 {
 			t.progress = 0
 			t.phase++
-			if t.phase > 2 { t.done = true }
+			if t.phase > 2 {
+				t.done = true
+			}
 		}
 		return t, Tick()
 	}
@@ -178,22 +190,36 @@ func (t *Redaction) View(width, height int) string {
 	black := lipgloss.NewStyle().Background(lipgloss.Color("#000000")).Foreground(lipgloss.Color("#000000"))
 
 	var lines []string
-	if t.phase == 0 { lines = t.oldLines } else { lines = t.newLines }
+	if t.phase == 0 {
+		lines = t.oldLines
+	} else {
+		lines = t.newLines
+	}
 
 	for y, line := range lines {
-		if y >= height { break }
+		if y >= height {
+			break
+		}
 
 		// If phase 0: add redaction bars randomly
 		// If phase 1: full redaction bars
 		// If phase 2: remove redaction bars
 
 		for x, char := range line {
-			if x >= width { break }
+			if x >= width {
+				break
+			}
 
 			drawRedacted := false
-			if t.phase == 0 && rand.Float64() < t.progress { drawRedacted = true }
-			if t.phase == 1 { drawRedacted = true }
-			if t.phase == 2 && rand.Float64() > t.progress { drawRedacted = true }
+			if t.phase == 0 && rand.Float64() < t.progress {
+				drawRedacted = true
+			}
+			if t.phase == 1 {
+				drawRedacted = true
+			}
+			if t.phase == 2 && rand.Float64() > t.progress {
+				drawRedacted = true
+			}
 
 			if drawRedacted {
 				c.SetChar(x, y, '█', black)
@@ -212,19 +238,23 @@ func (t *Redaction) View(width, height int) string {
 
 func (t *Redaction) Done() bool { return t.done }
 func (t *Redaction) ensureLines(h int) {
-	for len(t.oldLines) < h { t.oldLines = append(t.oldLines, "") }
-	for len(t.newLines) < h { t.newLines = append(t.newLines, "") }
+	for len(t.oldLines) < h {
+		t.oldLines = append(t.oldLines, "")
+	}
+	for len(t.newLines) < h {
+		t.newLines = append(t.newLines, "")
+	}
 }
-
 
 // --- 24. Slot Machine ---
 
 type SlotMachine struct {
 	BaseTransition
-	newLines []string
-	offsets  []float64
-	speeds   []float64
-	done     bool
+	newLines   []string
+	offsets    []float64
+	speeds     []float64
+	done       bool
+	viewHeight int
 }
 
 func NewSlotMachine() Transition { return &SlotMachine{} }
@@ -234,10 +264,15 @@ func (t *SlotMachine) SetContent(o, n string) {
 
 func (t *SlotMachine) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
-		if len(t.offsets) == 0 {
+		rows := t.viewHeight
+		if rows < 1 {
+			rows = 30
+		}
+
+		if len(t.offsets) != rows {
 			// Init
-			t.offsets = make([]float64, 100) // Max lines assumed
-			t.speeds = make([]float64, 100)
+			t.offsets = make([]float64, rows)
+			t.speeds = make([]float64, rows)
 			for i := range t.speeds {
 				t.speeds[i] = 2.0 + rand.Float64()*5.0
 			}
@@ -248,7 +283,9 @@ func (t *SlotMachine) Update(msg tea.Msg) (Transition, tea.Cmd) {
 			if t.speeds[i] > 0 {
 				t.offsets[i] += t.speeds[i]
 				t.speeds[i] -= 0.1 // Friction
-				if t.speeds[i] < 0 { t.speeds[i] = 0 }
+				if t.speeds[i] < 0 {
+					t.speeds[i] = 0
+				}
 				allStopped = false
 			} else {
 				// Snap to integer?
@@ -256,7 +293,9 @@ func (t *SlotMachine) Update(msg tea.Msg) (Transition, tea.Cmd) {
 			}
 		}
 
-		if allStopped { t.done = true }
+		if allStopped {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -264,10 +303,15 @@ func (t *SlotMachine) Update(msg tea.Msg) (Transition, tea.Cmd) {
 
 func (t *SlotMachine) View(width, height int) string {
 	c := canvas.New(width, height)
-	if len(t.newLines) == 0 { return "" }
+	t.viewHeight = height
+	if len(t.newLines) == 0 {
+		return ""
+	}
 
 	for y := 0; y < height; y++ {
-		if y >= len(t.offsets) { break }
+		if y >= len(t.offsets) {
+			break
+		}
 
 		offset := int(t.offsets[y])
 		// Draw line, but offset by random chars?
@@ -286,14 +330,15 @@ func (t *SlotMachine) View(width, height int) string {
 
 func (t *SlotMachine) Done() bool { return t.done }
 
-
 // --- 25. Firewall ---
 
 type Firewall struct {
 	BaseTransition
-	newLines []string
-	packets  []int // y positions
-	done     bool
+	newLines     []string
+	packets      []int // y positions
+	done         bool
+	viewHeight   int
+	packetBudget int
 }
 
 func NewFirewall() Transition { return &Firewall{} }
@@ -303,10 +348,23 @@ func (t *Firewall) SetContent(o, n string) {
 
 func (t *Firewall) Update(msg tea.Msg) (Transition, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
-		if rand.Float64() < 0.3 {
-			t.packets = append(t.packets, rand.Intn(30))
+		height := t.viewHeight
+		if height < 1 {
+			height = 30
 		}
-		if len(t.packets) > 50 { t.done = true }
+		if t.packetBudget < 60 {
+			t.packetBudget = height * 3
+			if t.packetBudget < 60 {
+				t.packetBudget = 60
+			}
+		}
+
+		if rand.Float64() < 0.3 {
+			t.packets = append(t.packets, rand.Intn(height))
+		}
+		if len(t.packets) > t.packetBudget {
+			t.done = true
+		}
 		return t, Tick()
 	}
 	return t, nil
@@ -314,6 +372,13 @@ func (t *Firewall) Update(msg tea.Msg) (Transition, tea.Cmd) {
 
 func (t *Firewall) View(width, height int) string {
 	c := canvas.New(width, height)
+	t.viewHeight = height
+	if t.packetBudget < 60 {
+		t.packetBudget = height * 3
+		if t.packetBudget < 60 {
+			t.packetBudget = 60
+		}
+	}
 
 	// Wall
 	wallX := width / 2

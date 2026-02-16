@@ -334,18 +334,43 @@ func (t *CryptoTheme) View(width, height int, q *game.Question, inputView string
 	c.SetString(boxX+2, boxY+5, "CHALLENGE: "+q.Text, green)
 	c.SetString(boxX+2, boxY+7, "NONCE: "+inputView, green)
 
-	// Hint with marquee scrolling
+	// Hint: static when it fits, slow marquee only on overflow
 	if hint != "" {
-		frame := t.frame % (len(hint) + 30)
-		displayHint := hint
-		if frame < len(hint) {
-			// Show from position
-			displayHint = hint[frame:]
-		} else {
-			// Pad with spaces then show full hint
-			displayHint = hint + strings.Repeat(" ", frame-len(hint))
+		hintPrefix := "CLUE: "
+		innerWidth := boxW - 4
+		availableHintRunes := innerWidth - len([]rune(hintPrefix))
+		if availableHintRunes > 0 {
+			displayHint := hint
+			hintRunes := len([]rune(hint))
+
+			if hintRunes > availableHintRunes {
+				maxOffset := hintRunes - availableHintRunes
+				const dwellFrames = 10
+				const stepEveryFrames = 4
+
+				sweepFrames := (maxOffset + 1) * stepEveryFrames
+				cycleFrames := dwellFrames + sweepFrames + dwellFrames
+				phase := 0
+				if cycleFrames > 0 {
+					phase = t.frame % cycleFrames
+				}
+
+				offset := 0
+				switch {
+				case phase < dwellFrames:
+					offset = 0
+				case phase < dwellFrames+sweepFrames:
+					offset = (phase - dwellFrames) / stepEveryFrames
+				default:
+					offset = maxOffset
+				}
+
+				r := []rune(hint)
+				displayHint = string(r[offset : offset+availableHintRunes])
+			}
+
+			c.SetString(boxX+2, boxY+9, hintPrefix+displayHint, green)
 		}
-		c.SetString(boxX+2, boxY+9, "CLUE: "+displayHint, green)
 	}
 
 	return c.Render()
