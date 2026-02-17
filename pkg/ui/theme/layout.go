@@ -2,6 +2,142 @@ package theme
 
 import "strings"
 
+type layoutBox struct {
+	x int
+	y int
+	w int
+	h int
+}
+
+func boundedSpan(total, margin, minSpan, maxSpan int) int {
+	if total <= 0 {
+		return 1
+	}
+	if margin < 0 {
+		margin = 0
+	}
+	if minSpan < 1 {
+		minSpan = 1
+	}
+
+	span := total - (margin * 2)
+	if span < 1 {
+		span = 1
+	}
+	if maxSpan > 0 && span > maxSpan {
+		span = maxSpan
+	}
+	if span < minSpan {
+		span = minSpan
+	}
+	if span > total {
+		span = total
+	}
+	if span < 1 {
+		span = 1
+	}
+	return span
+}
+
+func centeredStart(total, span int) int {
+	if total <= 0 || span >= total {
+		return 0
+	}
+	if span < 1 {
+		span = 1
+	}
+	return (total - span) / 2
+}
+
+func centeredBox(totalWidth, totalHeight, boxWidth, boxHeight int) layoutBox {
+	if totalWidth <= 0 {
+		totalWidth = 1
+	}
+	if totalHeight <= 0 {
+		totalHeight = 1
+	}
+	if boxWidth < 1 {
+		boxWidth = 1
+	}
+	if boxHeight < 1 {
+		boxHeight = 1
+	}
+	if boxWidth > totalWidth {
+		boxWidth = totalWidth
+	}
+	if boxHeight > totalHeight {
+		boxHeight = totalHeight
+	}
+
+	return layoutBox{
+		x: centeredStart(totalWidth, boxWidth),
+		y: centeredStart(totalHeight, boxHeight),
+		w: boxWidth,
+		h: boxHeight,
+	}
+}
+
+func (b layoutBox) inset(padX, padY int) layoutBox {
+	if padX < 0 {
+		padX = 0
+	}
+	if padY < 0 {
+		padY = 0
+	}
+
+	inner := layoutBox{
+		x: b.x + padX,
+		y: b.y + padY,
+		w: b.w - (padX * 2),
+		h: b.h - (padY * 2),
+	}
+
+	if inner.w < 1 {
+		inner.w = 1
+	}
+	if inner.h < 1 {
+		inner.h = 1
+	}
+
+	return inner
+}
+
+func wrapAndClamp(prefix, text string, width, maxLines int) []string {
+	if width <= 0 || maxLines <= 0 {
+		return nil
+	}
+
+	var lines []string
+	if prefix == "" {
+		lines = wrapText(text, width)
+	} else {
+		lines = wrapLabeled(prefix, text, width)
+	}
+
+	return clampLines(lines, maxLines, width)
+}
+
+func remainingRows(totalRows, usedRows, minRows int) int {
+	if totalRows <= 0 {
+		return 0
+	}
+	if minRows < 0 {
+		minRows = 0
+	}
+
+	remaining := totalRows - usedRows
+	if remaining < minRows {
+		remaining = minRows
+	}
+	if remaining > totalRows {
+		remaining = totalRows
+	}
+	if remaining < 0 {
+		remaining = 0
+	}
+	return remaining
+}
+
 func runeLen(s string) int {
 	return len([]rune(s))
 }

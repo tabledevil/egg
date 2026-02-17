@@ -260,34 +260,82 @@ func (t *FalloutTheme) View(width, height int, q *game.Question, inputView strin
 	}
 
 	// UI Frame
-	c.DrawBox(2, 2, width-4, height-4, green)
+	frameW := boundedSpan(width, 0, 8, width-4)
+	frameH := boundedSpan(height, 0, 8, height-4)
+	frame := centeredBox(width, height, frameW, frameH)
+	c.DrawBox(frame.x, frame.y, frame.w, frame.h, green)
 
 	// Header
-	c.SetString(4, 2, " STATS   ITEMS   DATA ", green.Background(lipgloss.Color("#003300")))
-	c.SetString(width-10, 2, " HP 100/100 ", green)
+	header := " STATS   ITEMS   DATA "
+	c.SetString(frame.x+2, frame.y, truncateToWidth(header, frame.w-4), green.Background(lipgloss.Color("#003300")))
+
+	hp := " HP 100/100 "
+	hpX := frame.x + frame.w - runeLen(hp) - 2
+	if hpX < frame.x+2 {
+		hpX = frame.x + 2
+	}
+	c.SetString(hpX, frame.y, hp, green)
 
 	// Vault Boy (ASCII Art Placeholder)
-	vbX := 5
-	vbY := 5
+	vbX := frame.x + 3
+	vbY := frame.y + 3
 	c.SetString(vbX, vbY, " (^_^)", green)
 	c.SetString(vbX, vbY+1, "/|  |\\", green)
 	c.SetString(vbX, vbY+2, " |__| ", green)
 	c.SetString(vbX, vbY+3, "  LL  ", green)
 
 	// Content
-	contentX := 20
-	c.SetString(contentX, 6, "QUEST: Answer the Question", green)
-	c.SetString(contentX, 8, q.Text, green)
+	contentX := vbX + 12
+	if contentX > frame.x+frame.w-14 {
+		contentX = frame.x + 2
+	}
+	contentW := frame.x + frame.w - contentX - 2
+	if contentW < 12 {
+		contentW = boundedSpan(frame.w, 0, 12, frame.w-4)
+		contentX = frame.x + centeredStart(frame.w, contentW)
+	}
 
-	c.SetString(contentX, 12, "> "+inputView+"_", green)
+	row := frame.y + 2
+	c.SetString(contentX, row, "QUEST: Answer the Question", green)
+	row += 2
+
+	questionLines := wrapAndClamp("", q.Text, contentW, 3)
+	for _, line := range questionLines {
+		if row >= frame.y+frame.h-2 {
+			break
+		}
+		c.SetString(contentX, row, line, green)
+		row++
+	}
+
+	if row < frame.y+frame.h-2 {
+		row++
+	}
+
+	inputLines := wrapAndClamp("> ", inputView+"_", contentW, 2)
+	for _, line := range inputLines {
+		if row >= frame.y+frame.h-2 {
+			break
+		}
+		c.SetString(contentX, row, line, green)
+		row++
+	}
 
 	// Hint - static placement below input
-	if hint != "" {
-		c.SetString(contentX, 14, "HINT: "+hint, green)
+	if hint != "" && row < frame.y+frame.h-1 {
+		hintLines := wrapAndClamp("HINT: ", hint, contentW, 2)
+		for _, line := range hintLines {
+			if row >= frame.y+frame.h-2 {
+				break
+			}
+			c.SetString(contentX, row, line, green)
+			row++
+		}
 	}
 
 	// Footer
-	c.SetString(4, height-3, " [ENTER] SELECT   [TAB] BACK ", green)
+	footY := frame.y + frame.h - 2
+	c.SetString(frame.x+2, footY, truncateToWidth(" [ENTER] SELECT   [TAB] BACK ", frame.w-4), green)
 
 	return c.Render()
 }
@@ -318,24 +366,78 @@ func (t *DeusExTheme) View(width, height int, q *game.Question, inputView string
 	}
 
 	// UI Elements (Triangles/Angles)
-	c.SetString(2, 2, "► SYSTEM ACCESS", gold)
-	c.SetString(width-15, 2, "STATUS: OK ◄", gold)
+	leftHeader := "► SYSTEM ACCESS"
+	c.SetString(2, 2, truncateToWidth(leftHeader, boundedSpan(width, 2, 8, width-4)), gold)
+
+	rightHeader := "STATUS: OK ◄"
+	rightX := width - runeLen(rightHeader) - 2
+	if rightX < 2 {
+		rightX = 2
+	}
+	c.SetString(rightX, 2, rightHeader, gold)
 
 	// Main Bar
-	c.Fill(0, height/2-1, width, 1, '─', gold)
+	barY := height/2 - 1
+	if barY < 0 {
+		barY = 0
+	}
+	c.Fill(0, barY, width, 1, '─', gold)
 
 	// Content
-	c.SetString(10, height/2-3, q.Text, gold.Bold(true))
-	c.SetString(10, height/2+1, "INPUT: "+inputView, gold)
+	contentW := boundedSpan(width, 6, 20, 64)
+	contentX := centeredStart(width, contentW)
+	row := height/2 - 3
+	if row < 4 {
+		row = 4
+	}
+
+	questionLines := wrapAndClamp("", q.Text, contentW, 3)
+	for _, line := range questionLines {
+		if row >= height {
+			break
+		}
+		c.SetString(contentX, row, line, gold.Bold(true))
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+
+	inputLines := wrapAndClamp("INPUT: ", inputView, contentW, 2)
+	for _, line := range inputLines {
+		if row >= height {
+			break
+		}
+		c.SetString(contentX, row, line, gold)
+		row++
+	}
 
 	// Hint - static placement below input
-	if hint != "" {
-		c.SetString(10, height/2+3, "CLUE: "+hint, gold)
+	if hint != "" && row < height {
+		hintLines := wrapAndClamp("CLUE: ", hint, contentW, 2)
+		for _, line := range hintLines {
+			if row >= height {
+				break
+			}
+			c.SetString(contentX, row, line, gold)
+			row++
+		}
 	}
 
 	// Decoration
-	c.SetString(width-10, height-5, "AUGMENTATION", gold)
-	c.SetString(width-10, height-4, "ACTIVE", gold)
+	decorX := width - runeLen("AUGMENTATION") - 2
+	if decorX < 2 {
+		decorX = 2
+	}
+	decorY := height - 5
+	if decorY < 0 {
+		decorY = 0
+	}
+	c.SetString(decorX, decorY, "AUGMENTATION", gold)
+	if decorY+1 < height {
+		c.SetString(decorX, decorY+1, "ACTIVE", gold)
+	}
 
 	return c.Render()
 }

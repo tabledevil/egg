@@ -57,10 +57,25 @@ func (c *Canvas) SetString(x, y int, text string, style lipgloss.Style) {
 		return
 	}
 
+	startX := x
 	col := x
+	row := y
 	for _, char := range text {
-		if col >= 0 && col < c.Width {
-			c.Grid[y][col] = Cell{Rune: char, Style: style}
+		switch char {
+		case '\r':
+			col = startX
+			continue
+		case '\n':
+			row++
+			col = startX
+			if row >= c.Height {
+				return
+			}
+			continue
+		}
+
+		if col >= 0 && col < c.Width && row >= 0 && row < c.Height {
+			c.Grid[row][col] = Cell{Rune: char, Style: style}
 		}
 		col++
 	}

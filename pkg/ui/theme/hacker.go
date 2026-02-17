@@ -216,12 +216,45 @@ func (t *HackersTheme) View(width, height int, q *game.Question, inputView strin
 	// Floating Text
 	bgStyle := lipgloss.NewStyle().Background(lipgloss.Color("#000000")).Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
 
-	c.SetString(centerX-10, centerY-2, "ACCESS GRANTED", bgStyle)
-	c.SetString(centerX-len(q.Text)/2, centerY, q.Text, bgStyle)
-	c.SetString(centerX-10, centerY+2, "> "+inputView, bgStyle)
+	panelW := boundedSpan(width, 4, 26, 56)
+	panelX := centeredStart(width, panelW)
+
+	questionLines := wrapAndClamp("", q.Text, panelW, 3)
+	inputLines := wrapAndClamp("> ", inputView, panelW, 2)
+
+	panelRows := 1 + 1 + len(questionLines) + 1 + len(inputLines)
+	if hint != "" {
+		panelRows += 2
+	}
+	row := centeredStart(height, panelRows)
+
+	title := "ACCESS GRANTED"
+	c.SetString(panelX+centeredStart(panelW, runeLen(title)), row, title, bgStyle)
+	row += 2
+
+	for _, line := range questionLines {
+		if row >= height {
+			break
+		}
+		c.SetString(panelX, row, line, bgStyle)
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+
+	for _, line := range inputLines {
+		if row >= height {
+			break
+		}
+		c.SetString(panelX, row, line, bgStyle)
+		row++
+	}
 
 	// Hint with glitch effect
-	if hint != "" {
+	if hint != "" && row < height {
+		row++
 		frame := int(t.rotation * 10)
 		displayHint := hint
 		// Glitch: randomly distort some characters
@@ -234,12 +267,28 @@ func (t *HackersTheme) View(width, height int, q *game.Question, inputView strin
 			}
 			displayHint = string(runes)
 		}
-		// Offset hint position slightly for glitch effect
-		offsetX := 0
-		if frame%4 < 1 {
-			offsetX = rand.Intn(3) - 1
+
+		hintPrefix := "HINT: "
+		hintWidth := panelW - runeLen(hintPrefix)
+		if hintWidth > 0 {
+			if runeLen(displayHint) > hintWidth {
+				maxOffset := runeLen(displayHint) - hintWidth
+				offset := 0
+				if maxOffset > 0 {
+					offset = frame % (maxOffset + 1)
+				}
+				displayHint = sliceRunes(displayHint, offset, hintWidth)
+			} else {
+				displayHint = truncateToWidth(displayHint, hintWidth)
+			}
+
+			// Offset hint position slightly for glitch effect
+			offsetX := 0
+			if frame%4 < 1 {
+				offsetX = rand.Intn(3) - 1
+			}
+			c.SetString(panelX+offsetX, row, hintPrefix+displayHint, bgStyle)
 		}
-		c.SetString(centerX-10+offsetX, centerY+4, "HINT: "+displayHint, bgStyle)
 	}
 
 	return c.Render()
@@ -274,28 +323,63 @@ func (t *MrRobotTheme) View(width, height int, q *game.Question, inputView strin
 
 	// Prompt
 	prompt := "root@kali:~# "
-	c.SetString(0, 0, prompt+"./crack_question.sh", bg)
+	lineWidth := boundedSpan(width, 0, 12, width)
+	c.SetString(0, 0, truncateToWidth(prompt+"./crack_question.sh", lineWidth), bg)
 
 	c.SetString(0, 2, "Running exploit...", bg)
-	c.SetString(0, 3, "[+] Target acquired: "+q.Text, bg)
-	c.SetString(0, 5, "Enter payload:", bg)
-	c.SetString(0, 6, "> "+inputView, bg)
+
+	targetLines := wrapAndClamp("[+] Target acquired: ", q.Text, lineWidth, 3)
+	row := 3
+	for _, line := range targetLines {
+		if row >= height {
+			break
+		}
+		c.SetString(0, row, line, bg)
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+	if row < height {
+		c.SetString(0, row, "Enter payload:", bg)
+		row++
+	}
+
+	inputLines := wrapAndClamp("> ", inputView, lineWidth, 2)
+	for _, line := range inputLines {
+		if row >= height {
+			break
+		}
+		c.SetString(0, row, line, bg)
+		row++
+	}
 
 	// Hint with typewriter effect
-	if hint != "" {
+	if hint != "" && row < height {
+		row++
 		// Reveal more characters as tick increases
-		revealLen := (t.tick / 3) % (len(hint) + 5)
-		if revealLen > len(hint) {
-			revealLen = len(hint)
+		hintRunes := runeLen(hint)
+		revealLen := (t.tick / 3) % (hintRunes + 5)
+		if revealLen > hintRunes {
+			revealLen = hintRunes
 		}
 		if revealLen > 0 {
-			c.SetString(0, 8, "> Hint: "+hint[:revealLen], bg)
+			hintLines := wrapAndClamp("> Hint: ", sliceRunes(hint, 0, revealLen), lineWidth, 2)
+			for _, line := range hintLines {
+				if row >= height {
+					break
+				}
+				c.SetString(0, row, line, bg)
+				row++
+			}
 		}
 	}
 
 	// Random "fsociety" hidden message
-	if rand.Float64() < 0.01 {
-		c.SetString(width-10, height-1, "fsociety", lipgloss.NewStyle().Foreground(lipgloss.Color("#330000")))
+	if rand.Float64() < 0.01 && height > 0 {
+		mark := "fsociety"
+		c.SetString(width-runeLen(mark), height-1, mark, lipgloss.NewStyle().Foreground(lipgloss.Color("#330000")))
 	}
 
 	return c.Render()
@@ -327,26 +411,61 @@ func (t *WargamesTheme) View(width, height int, q *game.Question, inputView stri
 	cyan := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FFFF"))
 
 	// Header
-	c.SetString(width/2-10, 2, "GREETINGS PROFESSOR FALKEN", cyan)
+	header := "GREETINGS PROFESSOR FALKEN"
+	c.SetString(centeredStart(width, runeLen(header)), 2, header, cyan)
 
 	// Simple Menu
-	c.SetString(10, 5, "GAME SELECTION:", cyan)
-	c.SetString(10, 7, "1. FALKEN'S MAZE", cyan)
-	c.SetString(10, 8, "2. BLACK JACK", cyan)
-	c.SetString(10, 9, "3. GLOBAL THERMONUCLEAR WAR", cyan)
-	c.SetString(10, 10, "4. "+strings.ToUpper(q.Text), cyan) // The question is the game
+	menuW := boundedSpan(width, 2, 20, 64)
+	menuX := centeredStart(width, menuW)
 
-	c.SetString(10, 14, "ENTER MOVE:", cyan)
+	row := 5
+	c.SetString(menuX, row, "GAME SELECTION:", cyan)
+	row += 2
+	c.SetString(menuX, row, "1. FALKEN'S MAZE", cyan)
+	row++
+	c.SetString(menuX, row, "2. BLACK JACK", cyan)
+	row++
+	c.SetString(menuX, row, "3. GLOBAL THERMONUCLEAR WAR", cyan)
+	row++
+
+	gameLines := wrapAndClamp("4. ", strings.ToUpper(q.Text), menuW, 2)
+	for _, line := range gameLines {
+		if row >= height {
+			break
+		}
+		c.SetString(menuX, row, line, cyan)
+		row++
+	}
+
+	if row < height {
+		row += 2
+	}
+
 	cursor := " "
 	if t.blink {
 		cursor = "█"
 	}
-	c.SetString(22, 14, inputView+cursor, cyan)
+
+	inputLines := wrapAndClamp("ENTER MOVE: ", inputView+cursor, menuW, 2)
+	for _, line := range inputLines {
+		if row >= height {
+			break
+		}
+		c.SetString(menuX, row, line, cyan)
+		row++
+	}
 
 	// Hint with blink effect
-	if hint != "" {
+	if hint != "" && row < height {
 		if t.blink {
-			c.SetString(10, 16, "HINT: "+hint, cyan)
+			hintLines := wrapAndClamp("HINT: ", hint, menuW, 2)
+			for _, line := range hintLines {
+				if row >= height {
+					break
+				}
+				c.SetString(menuX, row, line, cyan)
+				row++
+			}
 		}
 	}
 

@@ -147,8 +147,12 @@ func (t *StrangerThingsTheme) View(width, height int, q *game.Question, inputVie
 	letters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	colors := []string{"#FF0000", "#00FF00", "#0000FF", "#FFFF00"}
 
-	startX := (width - 13*4) / 2
-	startY := 5
+	gridW := ((8 - 1) * 5) + 1
+	startX := centeredStart(width, gridW)
+	startY := 4
+	if startY < 2 {
+		startY = 2
+	}
 
 	for i, char := range letters {
 		x := startX + (i%8)*5
@@ -165,13 +169,44 @@ func (t *StrangerThingsTheme) View(width, height int, q *game.Question, inputVie
 		c.SetChar(x, y-1, '●', style) // Bulb
 	}
 
-	c.SetString(width/2-10, height-5, q.Text, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")))
-	c.SetString(width/2-10, height-3, "> "+inputView, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")))
+	panelW := boundedSpan(width, 4, 20, 56)
+	panelX := centeredStart(width, panelW)
+	row := height - 7
+	if row < startY+10 {
+		row = startY + 10
+	}
+
+	questionLines := wrapAndClamp("", q.Text, panelW, 2)
+	for _, line := range questionLines {
+		if row >= height {
+			break
+		}
+		c.SetString(panelX, row, line, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")))
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+
+	inputLines := wrapAndClamp("> ", inputView, panelW, 1)
+	for _, line := range inputLines {
+		if row >= height {
+			break
+		}
+		c.SetString(panelX, row, line, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")))
+		row++
+	}
 
 	// Hint with blink effect - hint pulses with alphabet
-	if hint != "" {
-		if t.frame%10 < 5 {
-			c.SetString(width/2-10, height-7, "HINT: "+hint, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true))
+	if hint != "" && t.frame%10 < 5 && row < height {
+		hintLines := wrapAndClamp("HINT: ", hint, panelW, 2)
+		for _, line := range hintLines {
+			if row >= height {
+				break
+			}
+			c.SetString(panelX, row, line, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true))
+			row++
 		}
 	}
 
@@ -226,17 +261,57 @@ func (t *BladeRunnerTheme) View(width, height int, q *game.Question, inputView s
 		c.SetString(5, 5+i, line, orange)
 	}
 
-	c.SetString(30, 8, "SUBJECT: "+q.Text, orange)
-	c.SetString(30, 10, "EMOTIONAL RESPONSE: "+inputView, orange)
+	contentX := 30
+	contentY := 8
+	if width < 70 {
+		contentX = 2
+		contentY = 13
+	}
+	contentW := width - contentX - 2
+	if contentW < 16 {
+		contentW = boundedSpan(width, 2, 16, width-4)
+		contentX = centeredStart(width, contentW)
+	}
+
+	row := contentY
+	subjectLines := wrapAndClamp("SUBJECT: ", q.Text, contentW, 2)
+	for _, line := range subjectLines {
+		if row >= height {
+			break
+		}
+		c.SetString(contentX, row, line, orange)
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+	responseLines := wrapAndClamp("EMOTIONAL RESPONSE: ", inputView, contentW, 2)
+	for _, line := range responseLines {
+		if row >= height {
+			break
+		}
+		c.SetString(contentX, row, line, orange)
+		row++
+	}
 
 	// Hint with blink effect - orange pulsing hint
-	if hint != "" {
-		if t.frame%12 < 8 {
-			c.SetString(30, 12, "ANALYSIS: "+hint, orange)
+	if hint != "" && t.frame%12 < 8 && row < height {
+		if row < height {
+			row++
+		}
+		hintLines := wrapAndClamp("ANALYSIS: ", hint, contentW, 2)
+		for _, line := range hintLines {
+			if row >= height {
+				break
+			}
+			c.SetString(contentX, row, line, orange)
+			row++
 		}
 	}
 
-	c.SetString(width-20, height-2, "VOIGHT-KAMPFF TEST", orange)
+	footer := "VOIGHT-KAMPFF TEST"
+	c.SetString(width-runeLen(footer)-2, height-2, truncateToWidth(footer, boundedSpan(width, 2, 8, width-4)), orange)
 
 	return c.Render()
 }
@@ -268,28 +343,70 @@ func (t *BootTheme) View(width, height int, q *game.Question, inputView string, 
 
 	white := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
 
-	c.SetString(2, 2, "CTF-BIOS (C) 2024 The Authors", white)
-	c.SetString(2, 4, fmt.Sprintf("Memory Test: %d KB OK", t.memCount), white)
+	lineW := boundedSpan(width, 2, 20, 78)
+	lineX := 2
+	if lineX+lineW >= width {
+		lineX = centeredStart(width, lineW)
+	}
 
-	c.SetString(2, 6, "Detecting Primary Master ... Question Found", white)
-	c.SetString(2, 7, "Detecting Primary Slave  ... Hint Drive", white)
+	row := 2
+	c.SetString(lineX, row, truncateToWidth("CTF-BIOS (C) 2024 The Authors", lineW), white)
+	row += 2
+	c.SetString(lineX, row, truncateToWidth(fmt.Sprintf("Memory Test: %d KB OK", t.memCount), lineW), white)
 
-	c.SetString(2, 10, "Booting from Question Sector...", white)
+	row += 2
+	c.SetString(lineX, row, truncateToWidth("Detecting Primary Master ... Question Found", lineW), white)
+	row++
+	c.SetString(lineX, row, truncateToWidth("Detecting Primary Slave  ... Hint Drive", lineW), white)
 
-	c.SetString(2, 12, "KERNEL MSG: "+q.Text, white)
-	c.SetString(2, 14, "login: "+inputView, white)
+	row += 2
+	c.SetString(lineX, row, truncateToWidth("Booting from Question Sector...", lineW), white)
+
+	row += 2
+	kernelLines := wrapAndClamp("KERNEL MSG: ", q.Text, lineW, 3)
+	for _, line := range kernelLines {
+		if row >= height {
+			break
+		}
+		c.SetString(lineX, row, line, white)
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+	loginLines := wrapAndClamp("login: ", inputView, lineW, 2)
+	for _, line := range loginLines {
+		if row >= height {
+			break
+		}
+		c.SetString(lineX, row, line, white)
+		row++
+	}
 
 	// Hint with marquee scrolling (BIOS ticker style)
-	if hint != "" {
+	if hint != "" && row < height {
 		frame := t.memCount / 1024
-		scrollPos := frame % (len(hint) + 50)
-		displayHint := hint
-		if scrollPos < len(hint) {
-			displayHint = hint[scrollPos:]
-		} else {
-			displayHint = hint + strings.Repeat(" ", scrollPos-len(hint))
+		hintPrefix := "HINT: "
+		hintWidth := lineW - runeLen(hintPrefix)
+		if hintWidth > 0 {
+			displayHint := hint
+			if runeLen(hint) > hintWidth {
+				maxOffset := runeLen(hint) - hintWidth
+				offset := 0
+				if maxOffset > 0 {
+					offset = frame % (maxOffset + 1)
+				}
+				displayHint = sliceRunes(hint, offset, hintWidth)
+			} else {
+				displayHint = truncateToWidth(hint, hintWidth)
+			}
+			hintY := row + 1
+			if hintY >= height {
+				hintY = row
+			}
+			c.SetString(lineX, hintY, hintPrefix+displayHint, white)
 		}
-		c.SetString(2, 16, "HINT: "+displayHint, white)
 	}
 
 	return c.Render()
@@ -315,6 +432,10 @@ func (t *GhostInShellTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 }
 
 func (t *GhostInShellTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+
 	c := canvas.New(width, height)
 
 	green := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00"))
@@ -332,17 +453,47 @@ func (t *GhostInShellTheme) View(width, height int, q *game.Question, inputView 
 		c.SetString(x, y, "DATA", green)
 	}
 
-	c.SetString(centerX-len(q.Text)/2, centerY, q.Text, green.Bold(true))
-	c.SetString(centerX-10, centerY+2, "> "+inputView, green)
+	panelW := boundedSpan(width, 6, 24, 60)
+	panelX := centeredStart(width, panelW)
+	row := centerY
+
+	questionLines := wrapAndClamp("", q.Text, panelW, 2)
+	for _, line := range questionLines {
+		if row >= height {
+			break
+		}
+		c.SetString(panelX+centeredStart(panelW, runeLen(line)), row, line, green.Bold(true))
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+	inputLines := wrapAndClamp("> ", inputView, panelW, 2)
+	for _, line := range inputLines {
+		if row >= height {
+			break
+		}
+		c.SetString(panelX, row, line, green)
+		row++
+	}
 
 	// Hint with typewriter effect
-	if hint != "" {
-		revealLen := (t.frame / 3) % (len(hint) + 3)
-		if revealLen > len(hint) {
-			revealLen = len(hint)
+	if hint != "" && row < height {
+		hintRunes := runeLen(hint)
+		revealLen := (t.frame / 3) % (hintRunes + 3)
+		if revealLen > hintRunes {
+			revealLen = hintRunes
 		}
 		if revealLen > 0 {
-			c.SetString(centerX-10, centerY+4, "HINT: "+hint[:revealLen], green)
+			hintLines := wrapAndClamp("HINT: ", sliceRunes(hint, 0, revealLen), panelW, 2)
+			for _, line := range hintLines {
+				if row >= height {
+					break
+				}
+				c.SetString(panelX, row, line, green)
+				row++
+			}
 		}
 	}
 

@@ -199,27 +199,70 @@ func (t *CyberpunkTheme) View(width, height int, q *game.Question, inputView str
 	}
 
 	// Main content with glitch offset
-	content := fmt.Sprintf("NET_BUNKER // ACCESS_REQUIRED\n\n>> %s", q.Text)
-
 	offsetX := 0
 	if t.glitchIntensity > 0.2 {
 		offsetX = rand.Intn(3) - 1
 	}
 
-	c.SetString(5+offsetX, height/3, content, yellow.Inherit(bg))
+	panelW := boundedSpan(width, 4, 24, 62)
+	panelX := 5
+	if panelX+panelW >= width {
+		panelX = centeredStart(width, panelW)
+	}
+	row := height / 3
+	if row < 2 {
+		row = 2
+	}
 
-	// Chromatic Aberration for Input
-	c.SetString(5+2, height/2, "> "+inputView, cyan) // Shift right
-	c.SetString(5-2, height/2, "> "+inputView, pink) // Shift left
-	c.SetString(5, height/2, "> "+inputView, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true))
+	title := "NET_BUNKER // ACCESS_REQUIRED"
+	c.SetString(panelX+offsetX, row, truncateToWidth(title, panelW), yellow.Inherit(bg))
+	row += 2
 
-	if hint != "" {
-		c.SetString(5, height/2+3, "WARNING: "+hint, pink)
+	questionLines := wrapAndClamp("", q.Text, panelW, 3)
+	for _, line := range questionLines {
+		if row >= height {
+			break
+		}
+		c.SetString(panelX, row, line, yellow.Inherit(bg))
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+
+	inputLines := wrapAndClamp("> ", inputView, panelW, 1)
+	if len(inputLines) > 0 && row < height {
+		line := inputLines[0]
+		// Chromatic Aberration for Input
+		c.SetString(panelX+2, row, line, cyan) // Shift right
+		c.SetString(panelX-2, row, line, pink) // Shift left
+		c.SetString(panelX, row, line, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true))
+		row++
+	}
+
+	if hint != "" && row < height {
+		row++
+		hintLines := wrapAndClamp("WARNING: ", hint, panelW, 2)
+		for _, line := range hintLines {
+			if row >= height {
+				break
+			}
+			c.SetString(panelX, row, line, pink)
+			row++
+		}
 	}
 
 	// Decor
-	c.SetString(width-20, 2, "CONN: SECURE", cyan)
-	c.SetString(width-20, 3, fmt.Sprintf("PING: %dms", rand.Intn(20)+10), cyan)
+	conn := "CONN: SECURE"
+	connX := width - runeLen(conn) - 2
+	if connX < 2 {
+		connX = 2
+	}
+	c.SetString(connX, 2, conn, cyan)
+
+	ping := fmt.Sprintf("PING: %dms", rand.Intn(20)+10)
+	c.SetString(connX, 3, truncateToWidth(ping, boundedSpan(width-connX, 0, 6, width-connX)), cyan)
 
 	return c.Render()
 }
@@ -290,12 +333,47 @@ func (t *TronTheme) View(width, height int, q *game.Question, inputView string, 
 	}
 
 	// Text Floating
+	textW := boundedSpan(width, 6, 24, 60)
+	textX := centeredStart(width, textW)
 	textY := horizonY - 5
-	c.SetString(centerX-len(q.Text)/2, textY, q.Text, glowStyle.Bold(true))
-	c.SetString(centerX-15, textY+3, "> "+inputView, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")))
+	if textY < 1 {
+		textY = 1
+	}
 
-	if hint != "" {
-		c.SetString(centerX-len(hint)/2, textY+5, hint, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")))
+	row := textY
+	questionLines := wrapAndClamp("", q.Text, textW, 3)
+	for _, line := range questionLines {
+		if row >= height {
+			break
+		}
+		c.SetString(textX+centeredStart(textW, runeLen(line)), row, line, glowStyle.Bold(true))
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+	inputLines := wrapAndClamp("> ", inputView, textW, 2)
+	for _, line := range inputLines {
+		if row >= height {
+			break
+		}
+		c.SetString(textX, row, line, lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")))
+		row++
+	}
+
+	if hint != "" && row < height {
+		if row < height {
+			row++
+		}
+		hintLines := wrapAndClamp("", hint, textW, 2)
+		for _, line := range hintLines {
+			if row >= height {
+				break
+			}
+			c.SetString(textX+centeredStart(textW, runeLen(line)), row, line, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")))
+			row++
+		}
 	}
 
 	return c.Render()
@@ -411,6 +489,10 @@ func (t *SystemShockTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 }
 
 func (t *SystemShockTheme) View(width, height int, q *game.Question, inputView string, hint string) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+
 	c := canvas.New(width, height)
 
 	red := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
@@ -441,11 +523,47 @@ func (t *SystemShockTheme) View(width, height int, q *game.Question, inputView s
 		msg = "INSECT"
 	}
 
-	c.SetString(10, 10, "SUBJECT: "+msg, red)
-	c.SetString(10, 12, "RESPONSE REQUIRED: "+inputView, red)
+	contentW := boundedSpan(width, 4, 24, 62)
+	contentX := centeredStart(width, contentW)
+	row := eyeY + 4
+	if row < 8 {
+		row = 8
+	}
 
-	if hint != "" {
-		c.SetString(10, 14, "DATA FRAGMENT: "+hint, grey)
+	subjectLines := wrapAndClamp("SUBJECT: ", msg, contentW, 2)
+	for _, line := range subjectLines {
+		if row >= height {
+			break
+		}
+		c.SetString(contentX, row, line, red)
+		row++
+	}
+
+	if row < height {
+		row++
+	}
+
+	responseLines := wrapAndClamp("RESPONSE REQUIRED: ", inputView, contentW, 2)
+	for _, line := range responseLines {
+		if row >= height {
+			break
+		}
+		c.SetString(contentX, row, line, red)
+		row++
+	}
+
+	if hint != "" && row < height {
+		if row < height {
+			row++
+		}
+		hintLines := wrapAndClamp("DATA FRAGMENT: ", hint, contentW, 2)
+		for _, line := range hintLines {
+			if row >= height {
+				break
+			}
+			c.SetString(contentX, row, line, grey)
+			row++
+		}
 	}
 
 	return c.Render()
