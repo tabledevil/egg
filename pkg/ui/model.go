@@ -7,14 +7,15 @@ import (
 	"ctf-tool/pkg/ui/theme"
 	"ctf-tool/pkg/ui/transition"
 	"fmt"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 	"math/rand"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var sgrTextPattern = regexp.MustCompile(`\[[0-9;]*m`)
@@ -78,6 +79,7 @@ type Model struct {
 
 	// Animation State
 	TypewriterIndex int
+	FinaleTheme     theme.Theme
 
 	// UI Components
 	Input textinput.Model
@@ -326,6 +328,20 @@ func (m *Model) StartTransition() tea.Cmd {
 	if m.CurrentQuestionIndex >= len(m.Config.Questions) {
 		m.State = StateSuccess
 		m.Input.Reset()
+
+		// Initialize Finale theme if available
+		m.FinaleTheme = nil
+		for _, constructor := range theme.Registry {
+			tmp := constructor()
+			if tmp.Name() == "Antigravity (Finale)" {
+				m.FinaleTheme = tmp
+				if initCmd := m.FinaleTheme.Init(); initCmd != nil {
+					return initCmd
+				}
+				break
+			}
+		}
+
 		return nil
 	}
 
@@ -523,6 +539,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case StateSuccess:
 		// Success state logic
+		if m.FinaleTheme != nil {
+			var tCmd tea.Cmd
+			nextTheme, tCmd := m.FinaleTheme.Update(msg)
+			if nextTheme != nil {
+				m.FinaleTheme = nextTheme
+			}
+			cmds = append(cmds, tCmd)
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -601,13 +625,31 @@ func (m Model) View() string {
 		return content
 
 	case StateSuccess:
+		// Draw finale background if available
+		bg := ""
+		if m.FinaleTheme != nil {
+			// Mock a question so that the Avoidance layout has bounding boxes to avoid
+			mockQ := &game.Question{
+				Text: m.Config.FinalMessage,
+			}
+			bg = m.FinaleTheme.View(m.Width, m.Height, mockQ, m.Config.FinalHint, "")
+		} else {
+			bg = lipgloss.NewStyle().Width(m.Width).Height(m.Height).Render("")
+		}
+
 		style := lipgloss.NewStyle().
 			Width(m.Width).
 			Height(m.Height).
 			Align(lipgloss.Center, lipgloss.Center).
-			Border(lipgloss.DoubleBorder()).
-			BorderForeground(lipgloss.Color("#00FF00")).
+			Foreground(lipgloss.Color("#00FF00")).
 			Padding(2)
+
+		// The Avoidance theme renders the text itself, so we don't strictly need to overlay it
+		// here if the theme did it, but the theme expects standard hints.
+		// Since we mocked the question and hint, the Finale theme will just draw it.
+		if m.FinaleTheme != nil {
+			return bg
+		}
 
 		return style.Render(fmt.Sprintf("ACCESS GRANTED\n\n%s\n\n%s", m.Config.FinalMessage, m.Config.FinalHint))
 	}

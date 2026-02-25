@@ -10,7 +10,7 @@ import (
 	"unicode"
 )
 
-var ansiPattern = regexp.MustCompile("\\x1b\\[[0-9;]*[A-Za-z]")
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
 
 func stripANSI(in string) string {
 	return ansiPattern.ReplaceAllString(in, "")
