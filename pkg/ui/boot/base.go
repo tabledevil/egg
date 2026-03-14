@@ -3,9 +3,9 @@ package boot
 import (
 	"ctf-tool/pkg/game"
 	"ctf-tool/pkg/ui/caps"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"time"
 )
 
 type BaseIntro struct{}
@@ -31,7 +31,7 @@ func (b *BaseIntro) Done() bool {
 }
 
 func Tick() tea.Cmd {
-	return tea.Tick(time.Millisecond*45, func(t time.Time) tea.Msg {
+	return tea.Tick(caps.BootFrameInterval(), func(t time.Time) tea.Msg {
 		return game.TickMsg(t)
 	})
 }

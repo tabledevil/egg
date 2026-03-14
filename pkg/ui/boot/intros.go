@@ -30,6 +30,9 @@ func (i *NeonCipherIntro) IsCompatible(c caps.Capabilities) bool {
 
 func (i *NeonCipherIntro) Update(msg tea.Msg) (Intro, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
+		if i.done {
+			return i, nil
+		}
 		i.frame++
 		if i.frame >= 150 {
 			i.done = true
@@ -140,6 +143,9 @@ func (i *AmberGridIntro) IsCompatible(c caps.Capabilities) bool {
 
 func (i *AmberGridIntro) Update(msg tea.Msg) (Intro, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
+		if i.done {
+			return i, nil
+		}
 		i.frame++
 		if i.frame >= 120 {
 			i.done = true
@@ -232,6 +238,9 @@ func (i *PrismPulseIntro) IsCompatible(c caps.Capabilities) bool {
 
 func (i *PrismPulseIntro) Update(msg tea.Msg) (Intro, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
+		if i.done {
+			return i, nil
+		}
 		i.frame++
 		if i.frame >= 132 {
 			i.done = true
