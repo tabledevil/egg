@@ -94,3 +94,28 @@ func TestBootProfileCompatibility(t *testing.T) {
 		t.Fatalf("prism profile should support truecolor terminal")
 	}
 }
+
+func TestBootProfilesStopTickingAfterDone(t *testing.T) {
+	for _, constructor := range Registry {
+		intro := constructor()
+
+		for i := 0; i < 600 && !intro.Done(); i++ {
+			next, _ := intro.Update(game.TickMsg(time.Now()))
+			if next != nil {
+				intro = next
+			}
+		}
+
+		if !intro.Done() {
+			t.Fatalf("expected intro to finish before assertion")
+		}
+
+		next, cmd := intro.Update(game.TickMsg(time.Now()))
+		if next != nil {
+			intro = next
+		}
+		if cmd != nil {
+			t.Fatalf("expected no further ticks after done for %s", intro.Name())
+		}
+	}
+}

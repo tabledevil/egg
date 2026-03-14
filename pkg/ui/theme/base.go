@@ -25,9 +25,9 @@ func (b *BaseTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	return nil, nil
 }
 
-// Tick generates the standard 30 FPS tick
+// Tick generates a capability-aware animation tick
 func Tick() tea.Cmd {
-	return tea.Tick(time.Millisecond*33, func(t time.Time) tea.Msg {
+	return tea.Tick(caps.AnimationFrameInterval(), func(t time.Time) tea.Msg {
 		return game.TickMsg(t)
 	})
 }

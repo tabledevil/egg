@@ -22,8 +22,10 @@ var sgrTextPattern = regexp.MustCompile(`\[[0-9;]*m`)
 
 const transitionWatchdogTicks = 1800
 
+const lowBandwidthCursorBlinkInterval = 1200 * time.Millisecond
+
 func tick() tea.Cmd {
-	return tea.Tick(time.Millisecond*33, func(t time.Time) tea.Msg {
+	return tea.Tick(caps.AnimationFrameInterval(), func(t time.Time) tea.Msg {
 		return game.TickMsg(t)
 	})
 }
@@ -108,10 +110,15 @@ func NewModel(config *game.Config) Model {
 	ti.CharLimit = 156
 	ti.Width = 30
 
+	detectedCaps := caps.Detect()
+	if detectedCaps.LowBandwidthTTY {
+		ti.Cursor.BlinkSpeed = lowBandwidthCursorBlinkInterval
+	}
+
 	m := Model{
 		Config: config,
 		State:  StateIntro,
-		Caps:   caps.Detect(),
+		Caps:   detectedCaps,
 		Input:  ti,
 	}
 	m.PickRandomBootIntro()
@@ -380,7 +387,7 @@ func (m *Model) StartTransition() tea.Cmd {
 
 func (m Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
-	cmds = append(cmds, textinput.Blink, tick())
+	cmds = append(cmds, tick(), textinput.Blink)
 	if m.ActiveBoot != nil {
 		cmds = append(cmds, m.ActiveBoot.Init())
 	}
