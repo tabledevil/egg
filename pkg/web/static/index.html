@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CTF Terminal</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  #terminal { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="terminal"></div>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.18.0/lib/addon-webgl.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var term = new Terminal({
+    cursorBlink: false,
+    scrollback: 0,
+    allowProposedApi: true,
+    macOptionIsMeta: true,
+    fontSize: 14,
+    fontFamily: '"Cascadia Code", "Fira Code", "JetBrains Mono", "Source Code Pro", Menlo, monospace',
+    theme: {
+      background: '#000000',
+      foreground: '#c0c0c0'
+    }
+  });
+
+  var fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+
+  // Use WebGL renderer for GPU-accelerated drawing
+  try {
+    var webglAddon = new WebglAddon.WebglAddon();
+    webglAddon.onContextLoss(function() {
+      webglAddon.dispose();
+    });
+    term.loadAddon(webglAddon);
+  } catch(e) {
+    console.log('WebGL addon not available, using canvas renderer');
+  }
+
+  term.open(document.getElementById('terminal'));
+  fitAddon.fit();
+
+  // Build WebSocket URL relative to page origin
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var wsUrl = proto + '//' + location.host + '/ws';
+  var ws = null;
+  var reconnectDelay = 1000;
+
+  function connect() {
+    ws = new WebSocket(wsUrl);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = function() {
+      reconnectDelay = 1000;
+      // Send initial terminal size
+      sendResize();
+    };
+
+    ws.onmessage = function(ev) {
+      if (ev.data instanceof ArrayBuffer) {
+        term.write(new Uint8Array(ev.data));
+      } else {
+        term.write(ev.data);
+      }
+    };
+
+    ws.onclose = function() {
+      // Auto-reconnect with backoff
+      setTimeout(function() {
+        reconnectDelay = Math.min(reconnectDelay * 2, 8000);
+        connect();
+      }, reconnectDelay);
+    };
+
+    ws.onerror = function() {
+      ws.close();
+    };
+  }
+
+  // Relay keyboard input to server
+  term.onData(function(data) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(data);
+    }
+  });
+
+  function sendResize() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      // Protocol: first byte 1 = resize, then cols (u16 BE), rows (u16 BE)
+      var buf = new ArrayBuffer(5);
+      var view = new DataView(buf);
+      view.setUint8(0, 1);
+      view.setUint16(1, term.cols, false);
+      view.setUint16(3, term.rows, false);
+      ws.send(buf);
+    }
+  }
+
+  // Handle window resize
+  var resizeTimer = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() {
+      fitAddon.fit();
+      sendResize();
+    }, 100);
+  });
+
+  // Also send resize whenever the terminal size changes (e.g. from fitAddon)
+  term.onResize(function() {
+    sendResize();
+  });
+
+  connect();
+})();
+</script>
+</body>
+</html>

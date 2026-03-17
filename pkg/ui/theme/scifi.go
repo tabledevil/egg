@@ -393,7 +393,7 @@ func (t *AlienTheme) Description() string { return "MU-TH-UR 6000" }
 func (t *AlienTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.cursorBlink = !t.cursorBlink
-		return t, Tick()
+		return t, SlowTick()
 	}
 	return t, nil
 }

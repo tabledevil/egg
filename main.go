@@ -7,6 +7,7 @@ import (
 	"ctf-tool/pkg/ui/caps"
 	"ctf-tool/pkg/ui/theme"
 	"ctf-tool/pkg/ui/transition"
+	"ctf-tool/pkg/web"
 	"flag"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,7 +17,29 @@ import (
 func main() {
 	showcase := flag.Bool("showcase", false, "run UI showcase mode (cycles themes/transitions with placeholder text)")
 	list := flag.Bool("list", false, "list supported boot profiles, themes, and transitions for this terminal")
+	webMode := flag.Bool("web", false, "serve the CTF tool as a web terminal instead of running in the current terminal")
+	port := flag.Int("port", 8080, "port for the web terminal server (used with -web)")
 	flag.Parse()
+
+	// --- Web terminal mode ---
+	if *webMode {
+		self, err := os.Executable()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "cannot resolve own binary: %v\n", err)
+			os.Exit(1)
+		}
+		// Build args to pass to the child process (everything except -web/-port).
+		var childArgs []string
+		if *showcase {
+			childArgs = append(childArgs, "-showcase")
+		}
+		addr := fmt.Sprintf(":%d", *port)
+		if err := web.Serve(addr, self, childArgs); err != nil {
+			fmt.Fprintf(os.Stderr, "web server: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if *list {
 		c := caps.Detect()

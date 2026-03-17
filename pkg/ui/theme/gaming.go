@@ -12,7 +12,7 @@ import (
 // --- 11. Game Boy Theme ---
 
 type GameboyTheme struct {
-	BaseTheme
+	SlowBaseTheme
 }
 
 func NewGameboyTheme() Theme                { return &GameboyTheme{} }
@@ -77,7 +77,7 @@ func (t *GameboyTheme) View(width, height int, q *game.Question, inputView strin
 // --- 12. NES RPG Theme ---
 
 type NESTheme struct {
-	BaseTheme
+	SlowBaseTheme
 }
 
 func NewNESTheme() Theme                { return &NESTheme{} }
@@ -242,7 +242,7 @@ func (t *SNESTheme) View(width, height int, q *game.Question, inputView string, 
 // --- 14. Fallout Pip-Boy Theme ---
 
 type FalloutTheme struct {
-	BaseTheme
+	SlowBaseTheme
 }
 
 func NewFalloutTheme() Theme                { return &FalloutTheme{} }
@@ -343,7 +343,7 @@ func (t *FalloutTheme) View(width, height int, q *game.Question, inputView strin
 // --- 15. Deus Ex Theme ---
 
 type DeusExTheme struct {
-	BaseTheme
+	SlowBaseTheme
 }
 
 func NewDeusExTheme() Theme                { return &DeusExTheme{} }

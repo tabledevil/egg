@@ -111,7 +111,7 @@ func (t *C64Theme) View(width, height int, q *game.Question, inputView string, h
 // --- 7. DOS Theme ---
 
 type DOSTheme struct {
-	BaseTheme
+	SlowBaseTheme
 }
 
 func NewDOSTheme() Theme                { return &DOSTheme{} }
@@ -177,7 +177,7 @@ func (t *DOSTheme) View(width, height int, q *game.Question, inputView string, h
 // --- 8. Amiga Theme ---
 
 type AmigaTheme struct {
-	BaseTheme
+	SlowBaseTheme
 }
 
 func NewAmigaTheme() Theme                { return &AmigaTheme{} }
@@ -387,7 +387,7 @@ func (t *VHSTheme) View(width, height int, q *game.Question, inputView string, h
 // --- 10. Soviet Theme ---
 
 type SovietTheme struct {
-	BaseTheme
+	SlowBaseTheme
 }
 
 func NewSovietTheme() Theme                { return &SovietTheme{} }

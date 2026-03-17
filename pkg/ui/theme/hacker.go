@@ -399,7 +399,7 @@ func (t *WargamesTheme) Description() string { return "Shall we play a game?" }
 func (t *WargamesTheme) Update(msg tea.Msg) (Theme, tea.Cmd) {
 	if _, ok := msg.(game.TickMsg); ok {
 		t.blink = !t.blink
-		return t, Tick()
+		return t, SlowTick()
 	}
 	return t, nil
 }

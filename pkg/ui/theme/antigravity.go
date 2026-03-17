@@ -11,6 +11,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Pre-built static color styles (avoids re-creating every frame).
+var (
+	frostyBlueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("111"))
+	matrixStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
+)
+
 const (
 	numParticles = 800
 )
@@ -70,6 +76,10 @@ type AntigravityTheme struct {
 
 	// Used for Finale theme
 	finaleTick int
+
+	// colorCache avoids re-creating identical lipgloss.Style objects for
+	// quantised dynamic colours (AnimatedRGB / Fire / Sparkle).
+	colorCache map[string]lipgloss.Style
 }
 
 func NewAntigravityThemeDialog() Theme {
@@ -95,6 +105,7 @@ func newAntigravityTheme(layout int, name, desc string) *AntigravityTheme {
 		colorTheme:  rand.Intn(4), // Spawn with random color theme
 		name:        name,
 		description: desc,
+		colorCache:  make(map[string]lipgloss.Style, 128),
 	}
 
 	if layout == LayoutDiamondSplat {
@@ -276,6 +287,30 @@ func getStreakChar(vx, vy float64) rune {
 	return '/'
 }
 
+// quantize rounds a 0-255 value to 16-level steps.  The visual difference is
+// imperceptible in a terminal but dramatically reduces unique style count
+// (from ~800 per frame to ~50-100), improving both CPU and ANSI output size.
+func quantize(v int) int {
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return (v >> 4) << 4
+}
+
+// cachedColor returns a lipgloss.Style with the given foreground colour,
+// reusing a previously built style if the same hex string was seen before.
+func (t *AntigravityTheme) cachedColor(hex string) lipgloss.Style {
+	if s, ok := t.colorCache[hex]; ok {
+		return s
+	}
+	s := lipgloss.NewStyle().Foreground(lipgloss.Color(hex))
+	t.colorCache[hex] = s
+	return s
+}
+
 type TextBox struct {
 	X, Y, W, H int
 	// Splat physics info
@@ -378,6 +413,14 @@ func (t *AntigravityTheme) View(width, height int, q *game.Question, inputView s
 		}
 	}
 
+	// Clear per-frame colour cache (reuses the map allocation).
+	for k := range t.colorCache {
+		delete(t.colorCache, k)
+	}
+
+	fw := float64(width)
+	fh := float64(height)
+
 	// Calculate and draw particles
 	for _, p := range t.particles {
 		if t.mode == ModeVector {
@@ -434,28 +477,35 @@ func (t *AntigravityTheme) View(width, height int, q *game.Question, inputView s
 
 			// Wrap around
 			if p.X < 0 {
-				p.X += float64(width)
+				p.X += fw
 			}
-			if p.X >= float64(width) {
-				p.X -= float64(width)
+			if p.X >= fw {
+				p.X -= fw
 			}
 			if p.Y < 0 {
-				p.Y += float64(height)
+				p.Y += fh
 			}
-			if p.Y >= float64(height) {
-				p.Y -= float64(height)
+			if p.Y >= fh {
+				p.Y -= fh
 			}
 
 			p.Char = getStreakChar(p.VX, p.VY)
 
 		} else {
-			// Shape target motion
+			// Shape target motion — skip expensive physics for particles
+			// that are wildly off-screen (> 2× screen dims away).
+			if p.X < -fw || p.X > fw*2 || p.Y < -fh || p.Y > fh*2 {
+				// Snap closer to target to save work.
+				p.X = p.TargetX + (rand.Float64()-0.5)*fw*0.3
+				p.Y = p.TargetY + (rand.Float64()-0.5)*fh*0.3
+			}
+
 			distToTarget := math.Hypot(p.TargetX-p.X, p.TargetY-p.Y)
 			dynamicTargetY := p.TargetY
 
 			if t.mode == ModeWaves {
 				waveSpeedOffset := float64(p.ShapeGroup) * 2.0
-				dynamicTargetY += math.Sin(p.TargetX*0.05+t.timeOffset+waveSpeedOffset) * (float64(height) * 0.1)
+				dynamicTargetY += math.Sin(p.TargetX*0.05+t.timeOffset+waveSpeedOffset) * (fh * 0.1)
 			}
 
 			// Add a subtle rotation/bobbing to shapes over time
@@ -513,65 +563,58 @@ func (t *AntigravityTheme) View(width, height int, q *game.Question, inputView s
 			p.Y = newY
 
 			p.Char = '.'
-			if distToTarget > float64(height)*0.4 {
+			if distToTarget > fh*0.4 {
 				p.Char = '-'
 			} else if rand.Float64() > 0.95 {
 				p.Char = '*'
 			}
 		}
 
-		// Draw to canvas
+		// Draw to canvas — skip particles outside the visible area.
 		ix, iy := int(p.X), int(p.Y)
-		if ix >= 0 && ix < width && iy >= 0 && iy < height {
-			style := p.Color
+		if ix < 0 || ix >= width || iy < 0 || iy >= height {
+			continue
+		}
 
-			switch t.colorTheme {
-			case ColorThemeFrostyBlue:
-				style = lipgloss.NewStyle().Foreground(lipgloss.Color("111"))
-			case ColorThemeMatrix:
-				style = lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
-			case ColorThemeAnimatedRGB:
-				r := int(math.Sin(p.X*0.05+t.timeOffset)*127 + 128)
-				g := int(math.Sin(p.Y*0.1+t.timeOffset*1.2)*127 + 128)
-				b := int(math.Sin((p.X+p.Y)*0.05+t.timeOffset*0.8)*127 + 128)
-				hexStr := fmt.Sprintf("#%02x%02x%02x", r, g, b)
-				style = lipgloss.NewStyle().Foreground(lipgloss.Color(hexStr))
-			case ColorThemeFire:
-				// Fire: Bright yellow near bottom, fading to orange/red upward, shifting based on time
-				heat := (float64(height) - p.Y) / float64(height) // 0 (top) to 1 (bottom)
-				fireOffset := math.Sin(p.X*0.3+t.timeOffset*2.0) * 0.2
-				heat += fireOffset
-				if heat > 1.0 {
-					heat = 1.0
-				}
-				if heat < 0.0 {
-					heat = 0.0
-				}
+		style := p.Color
 
-				r := 255
-				g := int(255 * (heat * heat))
-				b := int(100 * math.Pow(heat, 4))
-				hexStr := fmt.Sprintf("#%02x%02x%02x", r, g, b)
-				style = lipgloss.NewStyle().Foreground(lipgloss.Color(hexStr))
-			case ColorThemeSparkle:
-				// Greyscale with occasional spike of white
-				baseIntensity := 100 + int(math.Sin(p.X*0.1+p.Y*0.1)*30)
-				spike := 0
-				if rand.Float64() > 0.98 {
-					spike = 155
-				}
-				v := baseIntensity + spike
-				if v > 255 {
-					v = 255
-				}
-				hexStr := fmt.Sprintf("#%02x%02x%02x", v, v, v)
-				style = lipgloss.NewStyle().Foreground(lipgloss.Color(hexStr))
+		switch t.colorTheme {
+		case ColorThemeFrostyBlue:
+			style = frostyBlueStyle
+		case ColorThemeMatrix:
+			style = matrixStyle
+		case ColorThemeAnimatedRGB:
+			r := quantize(int(math.Sin(p.X*0.05+t.timeOffset)*127 + 128))
+			g := quantize(int(math.Sin(p.Y*0.1+t.timeOffset*1.2)*127 + 128))
+			b := quantize(int(math.Sin((p.X+p.Y)*0.05+t.timeOffset*0.8)*127 + 128))
+			style = t.cachedColor(fmt.Sprintf("#%02x%02x%02x", r, g, b))
+		case ColorThemeFire:
+			heat := (fh - p.Y) / fh
+			fireOffset := math.Sin(p.X*0.3+t.timeOffset*2.0) * 0.2
+			heat += fireOffset
+			if heat > 1.0 {
+				heat = 1.0
 			}
-
-			// Only draw if there isn't something more important there
-			if c.Grid[iy][ix].Rune == ' ' {
-				c.SetChar(ix, iy, p.Char, style)
+			if heat < 0.0 {
+				heat = 0.0
 			}
+			r := 255
+			g := quantize(int(255 * (heat * heat)))
+			b := quantize(int(100 * math.Pow(heat, 4)))
+			style = t.cachedColor(fmt.Sprintf("#%02x%02x%02x", r, g, b))
+		case ColorThemeSparkle:
+			baseIntensity := 100 + int(math.Sin(p.X*0.1+p.Y*0.1)*30)
+			spike := 0
+			if rand.Float64() > 0.98 {
+				spike = 155
+			}
+			v := quantize(baseIntensity + spike)
+			style = t.cachedColor(fmt.Sprintf("#%02x%02x%02x", v, v, v))
+		}
+
+		// Only draw if there isn't something more important there
+		if c.Grid[iy][ix].Rune == ' ' {
+			c.SetChar(ix, iy, p.Char, style)
 		}
 	}
 
