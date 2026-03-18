@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install Quiz Launcher</title>
+  <style>
+    :root {
+      --bg: #f4efe4;
+      --ink: #1b1f16;
+      --muted: #5d6555;
+      --accent: #cb5f33;
+      --panel: rgba(255, 251, 241, 0.82);
+      --border: rgba(27, 31, 22, 0.12);
+      --font-sans: "Avenir Next", "Gill Sans", "Helvetica Neue", sans-serif;
+      --font-mono: "IBM Plex Mono", "Menlo", "Consolas", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(203, 95, 51, 0.18), transparent 30%),
+        linear-gradient(180deg, #f8f3e7 0%, #ece3d1 100%);
+      color: var(--ink);
+      font-family: var(--font-sans);
+    }
+
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 48px 0 64px;
+    }
+
+    .panel {
+      padding: 28px;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 5vw, 4rem);
+      line-height: 0.95;
+    }
+
+    p {
+      max-width: 62ch;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin: 24px 0;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 20px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .button-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .button-secondary {
+      border: 1px solid var(--border);
+      color: var(--ink);
+    }
+
+    code, ol {
+      font-family: var(--font-mono);
+    }
+
+    ol {
+      padding-left: 18px;
+      color: var(--ink);
+      line-height: 1.7;
+    }
+
+    .footnote {
+      margin-top: 20px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <p class="eyebrow">quiz.ktf.ninja/install</p>
+      <h1>Install The Quiz Launcher</h1>
+      <p>The launcher polls <code>__QUIZ_BASE_URL__/status</code>. After a successful response and a short delay, macOS opens <code>__QUIZ_BASE_URL__</code> in the default browser.</p>
+
+      <div class="actions">
+        <a class="button button-primary" href="/downloads/QuizLauncherInstaller-macos.zip">Download macOS Installer</a>
+        <a class="button button-secondary" href="/">Open Browser Quiz</a>
+      </div>
+
+      <ol>
+        <li>Download <code>QuizLauncherInstaller-macos.zip</code>.</li>
+        <li>Extract the archive and open <code>Quiz Launcher Installer.app</code>.</li>
+        <li>If Gatekeeper blocks the app, use Right Click &gt; Open or allow it from Privacy &amp; Security.</li>
+        <li>Log out and back in once to make the LaunchAgent evidence easy to capture.</li>
+      </ol>
+
+      <p class="footnote">For the acquisition walkthrough, point DNS or a host override for <code>quiz.ktf.ninja</code> at <code>46.225.142.217</code> so the recovered artifacts contain the intended URL instead of a raw IP.</p>
+    </section>
+  </main>
+</body>
+</html>
